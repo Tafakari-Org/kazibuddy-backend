@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # Django Web Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kazi-buddy-backend
+    command: daphne -b 0.0.0.0 -p 8000 tafakari.asgi:application
+    volumes:
+      - ./tafakari:/app/tafakari
+      - static_volume:/app/tafakari/staticfiles
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./tafakari/.env
+    networks:
+      - kazi-network
+    restart: unless-stopped
+
+volumes:
+  static_volume:
+
+networks:
+  kazi-network:
+    driver: bridge

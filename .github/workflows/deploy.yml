@@ -1,0 +1,24 @@
+name: Deploy to Hostinger VPS
+
+on:
+    push:
+        branches:
+            - deployment
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v3
+
+            - name: Deploy via SSH
+              uses: appleboy/ssh-action@master
+              with:
+                  host: ${{ secrets.VPS_IP }}
+                  username: ${{ secrets.VPS_USER }}
+                  key: ${{ secrets.SSH_PRIVATE_KEY }}
+                  script: |
+                      cd /home/${{ secrets.VPS_USER }}/kazi-buddy
+                      git pull origin deployment
+                      bash scripts/deploy.sh
