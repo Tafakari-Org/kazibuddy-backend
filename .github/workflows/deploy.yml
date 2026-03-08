@@ -19,6 +19,6 @@ jobs:
                   username: ${{ secrets.VPS_USER }}
                   key: ${{ secrets.SSH_PRIVATE_KEY }}
                   script: |
-                      cd /home/${{ secrets.VPS_USER }}/kazi-buddy
+                      cd /var/www/kazibuddy-backend/kazibuddy-backend/
                       git pull origin deployment
                       bash scripts/deploy.sh

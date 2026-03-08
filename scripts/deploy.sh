@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Configuration
-PROJECT_DIR="/var/www/kazi-buddy-backend"
-ENV_FILE=".env.prod"
+PROJECT_DIR="/var/www/kazibuddy-backend"
+ENV_FILE="../.env.prod"
 
 echo "Starting deployment..."
 
