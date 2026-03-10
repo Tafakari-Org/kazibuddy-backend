@@ -162,7 +162,7 @@ def send_email_async(subject, html_message, recipient_list):
 
 
 
-def send_otp_to_email(user, otp_code=None, otp_type='registration'):
+def send_otp_to_email(user, otp_code=None, otp_type='registration', **kwargs):
     """
     Send OTP or Notification email asynchronously to avoid blocking the request
     """
@@ -175,6 +175,8 @@ def send_otp_to_email(user, otp_code=None, otp_type='registration'):
         # Prepare email content
         if otp_type == 'login':
             subject = "Login Notification"
+        elif otp_type == 'job_notification':
+            subject = "Job Update Notification"
         else:
             subject = f"{otp_type.replace('_', ' ').capitalize()} OTP Verification"
             
@@ -185,15 +187,24 @@ def send_otp_to_email(user, otp_code=None, otp_type='registration'):
             'otp_type': otp_type.replace('_', ' ').capitalize(),
         }
         
+        # Add any extra context passed through kwargs
+        context.update(kwargs)
+        
         # Render email template
         try:
-            html_message = render_to_string(
-                f'email_templates/{otp_type}_otp_email.html', 
-                context
-            )
+            # Check if we should use the _otp_email suffix or just _email
+            # For registration, login, and password_reset, we want the old suffix but updated login to be _email
+            template_name = f'email_templates/{otp_type}_email.html'
+            if otp_type in ['registration', 'password_reset', 'login_otp']:
+                template_name = f'email_templates/{otp_type}_otp_email.html'
+            elif otp_type == 'login':
+                # Map 'login' to 'login_otp_email.html' because that's the updated file name
+                template_name = 'email_templates/login_otp_email.html'
+                
+            html_message = render_to_string(template_name, context)
         except Exception as template_error:
-            logger.error(f"Error rendering email template: {str(template_error)}")
-            raise Exception("Failed to render email template.")
+            logger.error(f"Error rendering email template {template_name}: {str(template_error)}")
+            raise Exception(f"Failed to render email template {template_name}.")
         
         # Send email asynchronously
         send_email_async(subject, html_message, recipient_list)

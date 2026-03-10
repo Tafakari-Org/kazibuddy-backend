@@ -1,0 +1,148 @@
+{% load static %}
+{% load i18n %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Notification - {{ action_type }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .email-container {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            border: 1px solid #eef2f7;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: #ffffff;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .content {
+            padding: 40px 30px;
+            color: #444444;
+        }
+
+        .content h2 {
+            font-size: 20px;
+            color: #2c3e50;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        .job-details {
+            background-color: #f9fbff;
+            border-left: 4px solid #4CAF50;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .job-details p {
+            margin: 8px 0;
+            font-size: 15px;
+        }
+
+        .job-label {
+            font-weight: bold;
+            color: #7f8c8d;
+            width: 100px;
+            display: inline-block;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .footer {
+            background-color: #f8f9fa;
+            text-align: center;
+            padding: 25px;
+            font-size: 13px;
+            color: #95a5a6;
+            border-top: 1px solid #f1f4f8;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 28px;
+            background-color: #4CAF50;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin-top: 20px;
+            transition: background-color 0.3s ease;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>Job Notification</h1>
+        </div>
+        <div class="content">
+            <h2>Hello {{ full_name }},</h2>
+
+            {% if action_type == 'created' %}
+            <p>Great news! Your new job posting has been successfully created and is now awaiting administrator
+                approval.</p>
+            {% elif action_type == 'updated' %}
+            <p>The status of your job posting has been updated.</p>
+            {% elif action_type == 'deleted' %}
+            <p>Your job posting has been successfully removed from our platform.</p>
+            {% else %}
+            <p>There has been an update regarding your job posting.</p>
+            {% endif %}
+
+            <div class="job-details">
+                <p><span class="job-label">Job Title:</span> <strong>{{ job_title }}</strong></p>
+                {% if job_status %}
+                <p><span class="job-label">Status:</span> <span class="status-badge">{{ job_status }}</span></p>
+                {% endif %}
+            </div>
+
+            <p>If you have any questions or need further assistance, please don't hesitate to reach out to our support
+                team.</p>
+
+            <a href="https://kazibuddy.com/dashboard" class="button">View Dashboard</a>
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 Tafakari Team. All rights reserved.</p>
+            <p>You received this email because you are a registered user on KaziBuddy.</p>
+        </div>
+    </div>
+</body>
+
+</html>

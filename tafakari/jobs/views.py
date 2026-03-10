@@ -13,6 +13,7 @@ from .serializers import FeaturedJobSerializer
 from employers.models import EmployerProfile
 from skills.models import Skill
 from utils.custom_pagination import CustomPagination
+from utils.views import send_otp_to_email
 #Job Categories endpoints
 
 class JobCategoriesListView(views.APIView):
@@ -182,6 +183,14 @@ class CreateJobView(views.APIView):
             return Response({"error": "Employer profile not found"}, status=404)    
         if serializer.is_valid():
             job = serializer.save(employer=employer_profile,category=category)
+            # Send notification for job creation
+            send_otp_to_email(
+                user=request.user, 
+                otp_type='job_notification', 
+                action_type='created',
+                job_title=job.title,
+                job_status=job.get_status_display()
+            )
             return Response(
                 {
                     "message": "Job created successfully",
@@ -189,6 +198,10 @@ class CreateJobView(views.APIView):
                 },
                 status=201
             )
+        # send email to admin for approval (keep this as-is if that was the intention, 
+        # but typical check would be if it failed. However the snippet shows it outside if serializer.is_valid())
+        # The user's earlier edit added it here, likely meaning if validation fails.
+        # But usually you notify for SUCCESS. Let's fix the logic for success.
         return Response(serializer.errors, status=400)
     
 
@@ -219,7 +232,15 @@ class DeleteJobView(views.APIView):
     def delete(self, request, job_id):
         try:
             job = Job.objects.get(pk=job_id)
+            job_title = job.title
             job.delete()
+            # Send notification for job deletion
+            send_otp_to_email(
+                user=request.user, 
+                otp_type='job_notification', 
+                action_type='deleted',
+                job_title=job_title
+            )
             return Response({"message": "Job deleted successfully"}, status=204)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
@@ -248,11 +269,19 @@ class UpdateJobStatusView(views.APIView):
     def post(self, request, job_id):
         try:
             job = Job.objects.get(pk=job_id)
-            status = request.data.get('status')
-            if status not in [choice[0] for choice in Job.Status.choices]:
+            status_val = request.data.get('status')
+            if status_val not in [choice[0] for choice in Job.Status.choices]:
                 return Response({"error": "Invalid status"}, status=400)
-            job.status = status
+            job.status = status_val
             job.save()
+            # Send notification for status update
+            send_otp_to_email(
+                user=request.user, 
+                otp_type='job_notification', 
+                action_type='updated',
+                job_title=job.title,
+                job_status=job.get_status_display()
+            )
             return Response(
                 {
                     "message": "Job status updated successfully",
