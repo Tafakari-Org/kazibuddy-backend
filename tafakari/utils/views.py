@@ -162,9 +162,9 @@ def send_email_async(subject, html_message, recipient_list):
 
 
 
-def send_otp_to_email(user, otp_code, otp_type):
+def send_otp_to_email(user, otp_code=None, otp_type='registration'):
     """
-    Send OTP email asynchronously to avoid blocking the request
+    Send OTP or Notification email asynchronously to avoid blocking the request
     """
     try:
         # Validate user email
@@ -173,12 +173,16 @@ def send_otp_to_email(user, otp_code, otp_type):
             raise ValueError("User does not have an email address.")
         
         # Prepare email content
-        subject = f"{otp_type.capitalize()} OTP Verification"
+        if otp_type == 'login':
+            subject = "Login Notification"
+        else:
+            subject = f"{otp_type.replace('_', ' ').capitalize()} OTP Verification"
+            
         recipient_list = [user.email]
         context = {
             'full_name': getattr(user, 'full_name', user.email),
             'otp_code': otp_code,
-            'otp_type': otp_type.capitalize(),
+            'otp_type': otp_type.replace('_', ' ').capitalize(),
         }
         
         # Render email template

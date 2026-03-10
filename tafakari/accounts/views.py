@@ -104,8 +104,8 @@ class LoginView(APIView):
             
             tokens = get_tokens_for_user(user)
             user_type = get_userType_fromToken(tokens['access'])
-            otp_code = generate_otp(user, 'login')
-            send_otp_to_email(user, otp_code, 'login')
+            # No OTP for login, just a notification
+            send_otp_to_email(user, otp_type='login')
             return Response({
                 "message": "Login successful",
                 "user_id": str(user.id),

@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: kazi-buddy-backend
+    container_name: kazi-buddy-backend-local
     command: daphne -b 0.0.0.0 -p 8000 tafakari.asgi:application
     volumes:
       - ./tafakari:/app/tafakari
