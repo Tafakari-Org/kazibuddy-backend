@@ -130,6 +130,16 @@
             <p>You have received a new application for your job posting <strong>{{ job_title }}</strong> from
                 <strong>{{ applicant_name }}</strong>.
             </p>
+            {% elif action_type == 'admin_job_approved' %}
+            <p>Your job posting <strong>{{ job_title }}</strong> has been approved by the administrator and is now
+                visible to potential candidates.</p>
+            {% elif action_type == 'admin_job_unapproved' %}
+            <p>Your job posting <strong>{{ job_title }}</strong> has been unapproved by the administrator for further
+                review. It is currently hidden from the platform.</p>
+            {% elif action_type == 'application_status_updated' %}
+            <p>There has been an update to your application for <strong>{{ job_title }}</strong>. Your status is now
+                <span class="status-badge">{{ job_status }}</span>.
+            </p>
             {% else %}
             <p>There has been an update regarding your activities on KaziBuddy.</p>
             {% endif %}

@@ -12,6 +12,7 @@ from rest_framework import status
 from applications.models import JobApplication
 from applications.serializers import JobApplicationSerializer
 from rest_framework.permissions import IsAdminUser
+from utils.views import send_otp_to_email
 from utils.custom_error import error_response
 from utils.custom_pagination import CustomPagination
 from employers.models import EmployerProfile
@@ -42,6 +43,13 @@ class ApproveUserView(APIView):
             user.is_verified = True
             user.updated_at = timezone.now()
             user.save()
+            
+            # Notify user of approval
+            send_otp_to_email(
+                user=user, 
+                otp_type='admin_notification', 
+                action_type='approved'
+            )
 
         serializer = ApproveUserSerializer(user)
         return Response(
@@ -66,6 +74,13 @@ class DeactivateUserView(APIView):
             user.is_active = False
             user.updated_at = timezone.now()
             user.save()
+            
+            # Notify user of deactivation
+            send_otp_to_email(
+                user=user, 
+                otp_type='admin_notification', 
+                action_type='deactivated'
+            )
 
         serializer = UserStatusSerializer(user)
         return Response(
@@ -120,6 +135,15 @@ class ApproveJobView(APIView):
         job.admin_approved = True
         job.save()
         
+        # Notify employer of job approval
+        if job.employer and job.employer.user:
+            send_otp_to_email(
+                user=job.employer.user, 
+                otp_type='job_notification', 
+                action_type='admin_job_approved',
+                job_title=job.title
+            )
+        
         return Response(
             {
                 "message": "Job approved successfully",
@@ -145,6 +169,15 @@ class ApproveJobView(APIView):
         
         job.admin_approved = False
         job.save()
+        
+        # Notify employer of job unapproval
+        if job.employer and job.employer.user:
+            send_otp_to_email(
+                user=job.employer.user, 
+                otp_type='job_notification', 
+                action_type='admin_job_unapproved',
+                job_title=job.title
+            )
         
         return Response(
             {
@@ -244,6 +277,15 @@ class UpdateJobApplicationStatusView(APIView):
 
             application.save()
 
+            # Notify worker of application status update
+            send_otp_to_email(
+                user=application.worker.user, 
+                otp_type='job_notification', 
+                action_type='application_status_updated',
+                job_title=application.job.title,
+                job_status=application.get_status_display()
+            )
+
         # Use the JobApplicationSerializer for the response representation
         serializer = JobApplicationSerializer(application, context={"request": request})
 
@@ -292,6 +334,14 @@ class DeleteUserByEmailView(APIView):
     def delete(self, request, email):
         try:
             user = CustomUser.objects.get(email=email)
+            
+            # Notify user of deletion before deleting the record
+            send_otp_to_email(
+                user=user, 
+                otp_type='admin_notification', 
+                action_type='deleted'
+            )
+            
             user.delete()
             return Response({"message": f"User with email {email} deleted successfully"}, status=status.HTTP_200_OK)
         except CustomUser.DoesNotExist:

@@ -177,6 +177,8 @@ def send_otp_to_email(user, otp_code=None, otp_type='registration', **kwargs):
             subject = "Login Notification"
         elif otp_type == 'job_notification':
             subject = "Job Update Notification"
+        elif otp_type == 'admin_notification':
+            subject = "Account Update Notification"
         else:
             subject = f"{otp_type.replace('_', ' ').capitalize()} OTP Verification"
             
