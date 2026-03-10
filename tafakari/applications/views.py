@@ -10,6 +10,7 @@ from rest_framework import status
 from .utils import check_if_user_isOwner
 from utils.custom_pagination import CustomPagination
 from django.db import transaction
+from utils.views import send_otp_to_email
 
 
 # Create your views here.
@@ -58,6 +59,26 @@ class CreateJobApplicationView(APIView):
             serializer = self.serializer_class(data=request.data, context={'request': request})
             if serializer.is_valid():
                 application = serializer.save(job=job, worker=worker_profile)
+                
+                # Send notification for application creation
+                # Notify the applicant (worker)
+                send_otp_to_email(
+                    user=request.user, 
+                    otp_type='job_notification', 
+                    action_type='application_created',
+                    job_title=job.title,
+                )
+                
+                # Optionally notify the employer as well (customer/employer who posted the job)
+                if job.employer and job.employer.user:
+                    send_otp_to_email(
+                        user=job.employer.user, 
+                        otp_type='job_notification', 
+                        action_type='new_application', # I should add this too
+                        job_title=job.title,
+                        applicant_name=request.user.full_name
+                    )
+
                 return Response({
                     'status': 'success',
                     'message': 'Job application created successfully.',
@@ -183,17 +204,26 @@ class JobApplicationDetailView(APIView):
         # Check if the application exists
         try:
             application = JobApplication.objects.get(id=application_id)
+            job_title = application.job.title
+            application.delete()
+            
+            # Send notification for application withdrawal/deletion
+            send_otp_to_email(
+                user=request.user, 
+                otp_type='job_notification', 
+                action_type='application_deleted',
+                job_title=job_title
+            )
+            
+            return Response({
+                'status': 'success',
+                'message': 'Job application deleted successfully.'
+            }, status=status.HTTP_204_NO_CONTENT)
         except JobApplication.DoesNotExist:
             return Response({
                 'status': 'error',
                 'message': 'Job application not found.'
-            }, status=404)
-
-        application.delete()
-        return Response({
-            'status': 'success',
-            'message': 'Job application deleted successfully.'
-        }, status=204)
+            }, status=status.HTTP_404_NOT_FOUND)
 
 class SpecificJobApplicationListView(APIView):
     """

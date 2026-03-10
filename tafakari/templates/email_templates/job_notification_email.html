@@ -122,8 +122,16 @@
             <p>The status of your job posting has been updated.</p>
             {% elif action_type == 'deleted' %}
             <p>Your job posting has been successfully removed from our platform.</p>
+            {% elif action_type == 'application_created' %}
+            <p>Your application for the job <strong>{{ job_title }}</strong> has been successfully submitted.</p>
+            {% elif action_type == 'application_deleted' %}
+            <p>Your application for the job <strong>{{ job_title }}</strong> has been successfully withdrawn.</p>
+            {% elif action_type == 'new_application' %}
+            <p>You have received a new application for your job posting <strong>{{ job_title }}</strong> from
+                <strong>{{ applicant_name }}</strong>.
+            </p>
             {% else %}
-            <p>There has been an update regarding your job posting.</p>
+            <p>There has been an update regarding your activities on KaziBuddy.</p>
             {% endif %}
 
             <div class="job-details">
