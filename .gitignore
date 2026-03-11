@@ -12,3 +12,4 @@ __pycache__/
 .env
 tafakarienv/
 .env.docker
+tafakari/logs/

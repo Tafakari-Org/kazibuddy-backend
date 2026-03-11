@@ -6,4 +6,4 @@
 *migrations/
 *.sqlite3
 tafakarienv/
-tafakari/logs/
+logs/
