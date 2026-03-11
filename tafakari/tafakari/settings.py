@@ -307,6 +307,14 @@ LOGGING = {
             'backupCount': 5,
             'formatter': 'standard',
         },
+        'accounts_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_DIR, 'accounts.log'),
+            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'backupCount': 5,
+            'formatter': 'standard',
+        },
     },
     'loggers': {
         'django': {
@@ -318,6 +326,11 @@ LOGGING = {
             'handlers': ['console', 'file'],
             'level': 'DEBUG',
             'propagate': True,
+        },
+        'tafakari.accounts': {
+            'handlers': ['console', 'accounts_file'],
+            'level': 'DEBUG',
+            'propagate': False,
         },
     },
 }
