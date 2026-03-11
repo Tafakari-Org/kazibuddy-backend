@@ -3,6 +3,9 @@ from django.contrib.auth import authenticate
 from django.db import transaction
 from .models import CustomUser
 from dj_rest_auth.registration.serializers import RegisterSerializer
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class RegisterUserSerializer(serializers.ModelSerializer):
@@ -19,10 +22,12 @@ class RegisterUserSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         password = validated_data.pop('password')
         # Atomic: user creation + password set must succeed or fail together
+        logger.debug(f"Creating new user with email: {validated_data.get('email')}")
         with transaction.atomic():
             user = CustomUser.objects.create_user(**validated_data)
             user.set_password(password)
             user.save()
+        logger.info(f"Successfully created user ID: {user.id}")
         return user
     
 class LoginSerializer(serializers.Serializer):
@@ -42,10 +47,13 @@ class LoginSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Invalid phone number or email")
 
         if not user.check_password(password):
+            logger.warning(f"Login validation failed: Incorrect password for identifier {identifier}")
             raise serializers.ValidationError("Incorrect password")
         if not user.is_active:
+            logger.warning(f"Login validation failed: Account inactive for identifier {identifier}")
             raise serializers.ValidationError("User account is inactive")
 
+        logger.debug(f"Login validation successful for user: {user.email}")
         return {"user": user}
 
 
@@ -75,6 +83,8 @@ class GoogleOAuthUserSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         # Atomic: OAuth user creation + flag updates must succeed or fail together
+        email = validated_data.get('email')
+        logger.debug(f"Creating new Google OAuth user: {email}")
         with transaction.atomic():
             user = CustomUser.objects.create_user(
                 email=validated_data['email'],

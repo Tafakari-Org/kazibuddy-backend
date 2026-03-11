@@ -24,6 +24,9 @@ from utils.views import upload_file_to_supabase,get_file_url_from_supabase
 from utils.custom_error import error_response
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 User = CustomUser
 
@@ -35,9 +38,11 @@ class RegisterView(APIView):
 
         serializer = RegisterUserSerializer(data=request.data)
         if serializer.is_valid():
+            logger.info(f"Attempting to register user: {request.data.get('email') or request.data.get('phone_number')}")
             # Atomic: user creation must fully succeed or roll back
             with transaction.atomic():
                 user = serializer.save()
+            logger.info(f"User created successfully: {user.email} (ID: {user.id})")
 
             # External I/O: file upload to Supabase — kept outside transaction
             if profile_pic:
@@ -67,10 +72,10 @@ class RegisterView(APIView):
             try:
                 otp_code = generate_otp(user, 'registration')
                 send_otp_to_email(user, otp_code, 'registration')
-                print(f"OTP sent to {user.email}: {otp_code}")
+                logger.info(f"Registration OTP sent to {user.email}")
             except Exception as e:
                 # Handle email failure (log error, don't block registration)
-                print(f"OTP email failed: {str(e)}")
+                logger.error(f"Failed to send registration OTP to {user.email}: {str(e)}")
 
             return Response({
                 "message": "User registered. Check email for verification OTP",
@@ -83,6 +88,8 @@ class RegisterView(APIView):
                     "profile_photo_url": user.profile_photo_url,
                 },
             }, status=status.HTTP_201_CREATED)
+        
+        logger.warning(f"Registration failed for data: {request.data}. Errors: {serializer.errors}")
         return Response({
             "success": False,
             "message": f"Registration failed. The " + 
@@ -100,17 +107,21 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
+            logger.info(f"Login attempt for user: {user.email}")
             
             if not user.email_verified :
+                logger.warning(f"Login failed: Email not verified for user {user.email}")
                 return Response({"error": "Email not verified. Please verify your email before logging in."}, status=status.HTTP_403_FORBIDDEN)
             else:
                 if not user.is_verified:
+                    logger.warning(f"Login failed: User not approved by admin: {user.email}")
                     return Response({"error": "You are not approved by admin yet. Please wait for approval."}, status=status.HTTP_403_FORBIDDEN)
             
             tokens = get_tokens_for_user(user)
             user_type = get_userType_fromToken(tokens['access'])
             # No OTP for login, just a notification
             send_otp_to_email(user, otp_type='login')
+            logger.info(f"User logged in successfully: {user.email}")
             return Response({
                 "message": "Login successful",
                 "user_id": str(user.id),
@@ -140,6 +151,7 @@ class GoogleLoginCallback(APIView):
             error = request.GET.get("error")
             if error:
                 message = request.GET.get("error_description", "Google authentication failed")
+                logger.error(f"Google OAuth error: {error} - {message}")
                 return redirect(
                     f"{settings.FRONTEND_URL}/auth/login"
                     f"?status=error&message={message}"
@@ -149,6 +161,7 @@ class GoogleLoginCallback(APIView):
             
             code = request.GET.get("code")
             if not code:
+                logger.warning("Google OAuth attempt without authorization code")
                 return redirect(
                     f"{settings.FRONTEND_URL}/auth/login"
                     f"?status=error&message=Authorization code not provided"
@@ -192,7 +205,9 @@ class GoogleLoginCallback(APIView):
                 response = requests.post(token_url, data=data)
                 response.raise_for_status()
                 token_data = response.json()
-            except requests.exceptions.RequestException:
+                logger.info("Successfully exchanged Google OAuth code for tokens")
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Failed to exchange Google authorization code: {str(e)}")
                 return redirect(
                     f"{settings.FRONTEND_URL}/auth/login"
                     f"?status=error&message=Failed to exchange authorization code"
@@ -244,6 +259,7 @@ class GoogleLoginCallback(APIView):
                 user = CustomUser.objects.get(email=email)
 
                 if not user.is_verified:
+                    logger.warning(f"Google login attempt for unverified user: {email}")
                     message = (
                         "Your account is pending admin approval. "
                         "Please wait for approval before logging in."
@@ -256,6 +272,7 @@ class GoogleLoginCallback(APIView):
                 tokens = get_tokens_for_user(user)
                 user_type_from_token = get_userType_fromToken(tokens["access"])
 
+                logger.info(f"Google login successful for user: {email}")
                 return redirect(
                     f"{settings.FRONTEND_URL}/auth/google/success"
                     f"?access_token={tokens['access']}"
@@ -272,6 +289,7 @@ class GoogleLoginCallback(APIView):
                     # Double-check email uniqueness before creating account
                     # This prevents race conditions and ensures data integrity
                     if CustomUser.objects.filter(email=email).exists():
+                        logger.warning(f"Google registration failed: email {email} already exists")
                         message = (
                             "An account with this email already exists. "
                             "Please try logging in instead."
@@ -292,6 +310,7 @@ class GoogleLoginCallback(APIView):
 
                     if serializer.is_valid():
                         serializer.save()
+                        logger.info(f"New user created via Google OAuth: {email}")
                         message = (
                             "Account created successfully! "
                             "Your account is pending admin approval."
@@ -315,9 +334,7 @@ class GoogleLoginCallback(APIView):
 
                 except Exception as e:
                     # Log the exception for debugging
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.error(f"Google OAuth registration error: {str(e)}")
+                    logger.error(f"Google OAuth registration error for {email}: {str(e)}")
                     
                     return redirect(
                         f"{settings.FRONTEND_URL}/auth/login"
@@ -327,7 +344,8 @@ class GoogleLoginCallback(APIView):
     
         # Catch-all safeguard
         
-        except Exception:
+        except Exception as e:
+            logger.critical(f"Unexpected error in Google OAuth callback: {str(e)}")
             return redirect(
                 f"{settings.FRONTEND_URL}/auth/login"
                 f"?status=error&message=Unexpected authentication error"
@@ -521,6 +539,7 @@ class UserProfileView(APIView):
     def get(self, request):
         try:
             if not request.user.is_authenticated:
+                logger.warning("Profile retrieval attempt without authentication")
                 return Response(
                     {
                         "status": "error",
@@ -546,6 +565,7 @@ class UserProfileView(APIView):
                 "phone_verified": user.phone_verified,
             }, status=status.HTTP_200_OK)
         except Exception as e:
+            logger.error(f"Error retrieving user profile for {request.user}: {str(e)}")
             return error_response(
                 message="Error retrieving user profile",
                 errors={"error": str(e)},
@@ -556,6 +576,7 @@ class UserProfileView(APIView):
 class UpdateUserProfileView(APIView):
         def put(self, request):
             if not request.user.is_authenticated:
+                logger.warning("Profile update attempt without authentication")
                 # return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
                 return Response(
                     {
@@ -581,6 +602,7 @@ class UpdateUserProfileView(APIView):
             print(f"user photo url: {user.profile_photo_url}")
             try:
                 user.save()
+                logger.info(f"User profile updated successfully for {user.email}")
                 return Response({
                     "message": "Profile updated successfully",
                     "user_id": str(user.id),
@@ -603,6 +625,7 @@ class UpdateUserProfileView(APIView):
 class LogoutView(APIView):
     def post(self, request):
         if not request.user.is_authenticated:
+            logger.warning("Logout attempt without authentication")
             # return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
             return error_response(
                 message="Error during logout",
@@ -613,8 +636,10 @@ class LogoutView(APIView):
         # Invalidate the user's tokens
         try:
             RefreshToken.for_user(request.user)
+            logger.info(f"User logged out successfully: {request.user.email}")
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
         except Exception as e:
+            logger.error(f"Error during logout for user {request.user.email}: {str(e)}")
             # return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             return error_response(
                 message="Error during logout",
@@ -633,9 +658,12 @@ class DeleteAccountView(APIView):
         
         user = request.user
         try:
+            user_email = user.email
             user.delete()
+            logger.info(f"Account deleted successfully: {user_email}")
             return Response({"message": "Account deleted successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
+            logger.error(f"Error deleting account for {request.user.email}: {str(e)}")
             return error_response(
                 message="Error deleting account",
                 errors={"error": str(e)},
@@ -664,7 +692,9 @@ class VerifyEmailView(APIView):
                 if validate_otp(user, otp_code, otp_type):
                     user.email_verified = True
                     user.save()
+                    logger.info(f"Email verified successfully for user: {user.email}")
                 else:
+                    logger.warning(f"Invalid OTP verification attempt for user: {user.email}")
                     return error_response(
                         message="Invalid or expired OTP",
                         errors={"error": "Invalid or expired OTP"},
@@ -673,6 +703,7 @@ class VerifyEmailView(APIView):
             return Response({"message": "Email verified successfully"})
             
         except Exception as e:
+            logger.error(f"Error verifying email for user {user_id}: {str(e)}")
             return error_response(
                 message="Error verifying email",
                 errors={"error": str(e)},
@@ -696,6 +727,7 @@ class PasswordResetView(APIView):
         
         otp_code = generate_otp(user, 'password_reset')
         send_otp_to_email(user, otp_code, 'password_reset')
+        logger.info(f"Password reset OTP sent to {user.email}")
         
         return Response({
             "message": "Password reset OTP sent to your email",
