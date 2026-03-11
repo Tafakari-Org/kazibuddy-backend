@@ -83,11 +83,10 @@ class RegisterView(APIView):
                     "profile_photo_url": user.profile_photo_url,
                 },
             }, status=status.HTTP_201_CREATED)
-        return error_response(
-            message="error during register",
-            errors=serializer.errors,
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({
+            "error": True,
+            "fieldErrors": serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST)
     
     
 class LoginView(APIView):
