@@ -84,10 +84,16 @@ class RegisterView(APIView):
                 },
             }, status=status.HTTP_201_CREATED)
         return Response({
-            "error": True,
-            "fieldErrors": serializer.errors},
-            status=status.HTTP_400_BAD_REQUEST)
-    
+            "success": False,
+            "message": f"Registration failed. The " + 
+               ", ".join([
+                   field.replace('_', ' ')
+                   for field in serializer.errors
+               ]) + " you entered " + 
+               ("are" if len(serializer.errors) > 1 else "is") + " taken.",
+            "status_code": 400
+        }, status=status.HTTP_400_BAD_REQUEST)
+                            
     
 class LoginView(APIView):
     def post(self, request):
