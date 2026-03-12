@@ -67,6 +67,7 @@ class RegisterView(APIView):
                         user.save()
                 except Exception as e:
                     print(f"Failed to upload profile picture: {str(e)}")
+                    logger.error(f"Failed to upload profile picture: {str(e)} ")
 
             # External I/O: OTP generation + email — kept outside transaction
             try:
@@ -564,6 +565,7 @@ class UserProfileView(APIView):
                 "email_verified": user.email_verified,
                 "phone_verified": user.phone_verified,
             }, status=status.HTTP_200_OK)
+            logger.info(f"Profile retrieved successfully for user: {user.full_name}")
         except Exception as e:
             logger.error(f"Error retrieving user profile for {request.user}: {str(e)}")
             return error_response(
