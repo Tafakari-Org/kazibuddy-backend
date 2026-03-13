@@ -233,17 +233,24 @@ SIMPLE_JWT = {
 
 
 EMAIL_TIMEOUT = 10 
-# settings.py
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
+# Email backend — switch to smtp.EmailBackend in production
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv("EMAIL_HOST")
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
+DEFAULT_FROM_EMAIL = os.getenv("EMAIL_HOST_USER", "noreply@kazibuddy.tech")
+
+# Token-based password reset link expiry (seconds). Default Django = 259200 (3 days).
+# Set to 1 hour for better security.
+PASSWORD_RESET_TIMEOUT = 3600
 
 
 FRONTEND_URL = os.getenv("FRONTEND_URL").split(",")
+
 
 
 

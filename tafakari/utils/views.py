@@ -245,10 +245,44 @@ def validate_otp(user, otp_code, otp_type):
 
 
 
+def send_password_reset_email(user, reset_link):
+    """
+    Send a password reset link email asynchronously.
+
+    Uses the `email_templates/password_reset_link_email.html` template and
+    the existing smtplib-based send_email_async helper so it doesn't block
+    the request thread.
+    """
+    try:
+        if not user.email:
+            logger.error(f"User {user.id} has no email address — cannot send password reset email")
+            return
+
+        subject = "Reset your KaziBuddy password"
+        context = {
+            'full_name': getattr(user, 'full_name', user.email),
+            'reset_link': reset_link,
+        }
+
+        try:
+            html_message = render_to_string('email_templates/password_reset_link_email.html', context)
+        except Exception as template_error:
+            logger.error(f"Error rendering password reset email template: {str(template_error)}")
+            raise Exception("Failed to render password reset email template.")
+
+        send_email_async(subject, html_message, [user.email])
+        logger.info(f"Password reset email queued for {user.email}")
+
+    except Exception as e:
+        logger.error(f"send_password_reset_email error: {str(e)}")
+        # Don't raise — a failed email must not block the request response
+
+
 def get_supabase_client():
+
     """Get Supabase client with proper error handling"""
     url = settings.SUPABASE_URL
-    key = settings.SUPABASE_KEY
+    key = settings.SUPABASE_KEY                   
     
     if not url or not key:
         logger.error("Supabase URL or KEY not configured")

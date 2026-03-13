@@ -1,5 +1,9 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
+from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import force_str
 from django.db import transaction
 from .models import CustomUser
 from dj_rest_auth.registration.serializers import RegisterSerializer
@@ -97,3 +101,61 @@ class GoogleOAuthUserSerializer(serializers.ModelSerializer):
             user.email_verified = True
             user.save()
         return user
+
+
+# ---------------------------------------------------------------------------
+# Password Reset (token-based, secure)
+# ---------------------------------------------------------------------------
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """
+    Accepts an email address. Validation only checks the format; the view
+    is responsible for the user lookup so that we never reveal whether an
+    email exists in the system (enumeration protection).
+    """
+    email = serializers.EmailField(required=True)
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """
+    Accepts uidb64, token, and new_password.
+    Performs full token validation and password strength checks inside
+    validate() so the view only needs to call set_password().
+    """
+    uidb64 = serializers.CharField(required=True)
+    token = serializers.CharField(required=True)
+    new_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        min_length=8,
+        style={'input_type': 'password'},
+    )
+
+    def validate_new_password(self, value):
+        """Run Django's AUTH_PASSWORD_VALIDATORS against the new password."""
+        try:
+            validate_password(value)
+        except Exception as e:
+            raise serializers.ValidationError(list(e.messages))
+        return value
+
+    def validate(self, data):
+        # Decode the user PK
+        try:
+            uid = force_str(urlsafe_base64_decode(data['uidb64']))
+            user = CustomUser.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, CustomUser.DoesNotExist):
+            raise serializers.ValidationError(
+                {'uidb64': 'Invalid or expired reset link.'}
+            )
+
+        # Verify the token
+        token_generator = PasswordResetTokenGenerator()
+        if not token_generator.check_token(user, data['token']):
+            raise serializers.ValidationError(
+                {'token': 'Invalid or expired reset link.'}
+            )
+
+        # Attach the user so the view can retrieve it from validated_data
+        data['user'] = user
+        return data

@@ -3,8 +3,24 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import CustomUser
-from .serializers import RegisterUserSerializer, LoginSerializer,GoogleOAuthUserSerializer
-from utils.views import get_tokens_for_user, send_otp_to_email,generate_otp,validate_otp,get_userType_fromToken
+from .serializers import (
+    RegisterUserSerializer,
+    LoginSerializer,
+    GoogleOAuthUserSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetConfirmSerializer,
+)
+from utils.views import (
+    get_tokens_for_user,
+    send_otp_to_email,
+    generate_otp,
+    validate_otp,
+    get_userType_fromToken,
+    send_password_reset_email,
+)
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
@@ -736,3 +752,82 @@ class PasswordResetView(APIView):
             "user_id": str(user.id)
         }, status=status.HTTP_200_OK)
 
+
+# ---------------------------------------------------------------------------
+# Secure token-based password reset (new endpoints, keeps OTP flow above)
+# ---------------------------------------------------------------------------
+
+class PasswordResetRequestView(APIView):
+    """
+    POST /auth/password-reset-request/
+
+    Accepts { "email": "..." }.
+    Always returns HTTP 200 regardless of whether the email exists (prevents
+    email enumeration). The reset link is emailed asynchronously.
+    """
+    authentication_classes = []   # public endpoint — no JWT required
+    permission_classes = []       # open to unauthenticated users
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data['email']
+
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            # Deliberately vague — do not reveal whether the email exists
+            logger.debug(f"Password reset requested for non-existent email: {email}")
+            return Response(
+                {"message": "If that email is registered, you will receive a reset link shortly."},
+                status=status.HTTP_200_OK,
+            )
+
+        # Generate secure token and uidb64
+        token = PasswordResetTokenGenerator().make_token(user)
+        uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+
+        # Build the frontend reset URL
+        frontend_url = settings.FRONTEND_URL[0] if settings.FRONTEND_URL else ""
+        reset_link = f"{frontend_url}/reset-password?uid={uidb64}&token={token}"
+
+        # Log the link in development for easy testing (remove/downgrade in prod)
+        logger.debug(f"Password reset link for {user.email}: {reset_link}")
+
+        send_password_reset_email(user, reset_link)
+        logger.info(f"Password reset email dispatched for: {user.email}")
+
+        return Response(
+            {"message": "If that email is registered, you will receive a reset link shortly."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetConfirmView(APIView):
+    """
+    POST /auth/password-reset-confirm/
+
+    Accepts { "uidb64": "...", "token": "...", "new_password": "..." }.
+    The serializer handles all validation (token check + password strength).
+    """
+    authentication_classes = []   # public endpoint — no JWT required
+    permission_classes = []       # open to unauthenticated users
+
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = serializer.validated_data['user']
+        new_password = serializer.validated_data['new_password']
+
+        user.set_password(new_password)
+        user.save()
+        logger.info(f"Password reset successfully for user: {user.email}")
+
+        return Response(
+            {"message": "Password reset successful. You can now log in with your new password."},
+            status=status.HTTP_200_OK,
+        )
