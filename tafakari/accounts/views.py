@@ -757,6 +757,41 @@ class PasswordResetView(APIView):
 # Secure token-based password reset (new endpoints, keeps OTP flow above)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Shared response helpers for the password reset views
+# ---------------------------------------------------------------------------
+
+def _ok(message):
+    """Standard success envelope used across password reset views."""
+    return Response(
+        {"success": True, "message": message, "status_code": status.HTTP_200_OK},
+        status=status.HTTP_200_OK,
+    )
+
+
+def _err(message, status_code=status.HTTP_400_BAD_REQUEST):
+    """Standard error envelope used across password reset views."""
+    return Response(
+        {"success": False, "message": message, "status_code": status_code},
+        status=status_code,
+    )
+
+
+def _serializer_errors_to_message(errors):
+    """
+    Flatten DRF serializer error dicts into a single human-readable string.
+    e.g. {'token': ['Invalid or expired reset link.']}  →  'Invalid or expired reset link.'
+    """
+    parts = []
+    for field_errors in errors.values():
+        if isinstance(field_errors, list):
+            for err in field_errors:
+                parts.append(str(err))
+        else:
+            parts.append(str(field_errors))
+    return " ".join(parts) if parts else "Invalid request."
+
+
 class PasswordResetRequestView(APIView):
     """
     POST /auth/password-reset-request/
@@ -771,7 +806,7 @@ class PasswordResetRequestView(APIView):
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return _err(_serializer_errors_to_message(serializer.errors))
 
         email = serializer.validated_data['email']
 
@@ -780,10 +815,7 @@ class PasswordResetRequestView(APIView):
         except CustomUser.DoesNotExist:
             # Deliberately vague — do not reveal whether the email exists
             logger.debug(f"Password reset requested for non-existent email: {email}")
-            return Response(
-                {"message": "If that email is registered, you will receive a reset link shortly."},
-                status=status.HTTP_200_OK,
-            )
+            return _ok("If that email is registered, you will receive a reset link shortly.")
 
         # Generate secure token and uidb64
         token = PasswordResetTokenGenerator().make_token(user)
@@ -793,16 +825,13 @@ class PasswordResetRequestView(APIView):
         frontend_url = settings.FRONTEND_URL[0] if settings.FRONTEND_URL else ""
         reset_link = f"{frontend_url}/reset-password?uid={uidb64}&token={token}"
 
-        # Log the link in development for easy testing (remove/downgrade in prod)
+        # Log the link for easy dev testing
         logger.debug(f"Password reset link for {user.email}: {reset_link}")
 
         send_password_reset_email(user, reset_link)
         logger.info(f"Password reset email dispatched for: {user.email}")
 
-        return Response(
-            {"message": "If that email is registered, you will receive a reset link shortly."},
-            status=status.HTTP_200_OK,
-        )
+        return _ok("If that email is registered, you will receive a reset link shortly.")
 
 
 class PasswordResetConfirmView(APIView):
@@ -818,7 +847,7 @@ class PasswordResetConfirmView(APIView):
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return _err(_serializer_errors_to_message(serializer.errors))
 
         user = serializer.validated_data['user']
         new_password = serializer.validated_data['new_password']
@@ -827,7 +856,4 @@ class PasswordResetConfirmView(APIView):
         user.save()
         logger.info(f"Password reset successfully for user: {user.email}")
 
-        return Response(
-            {"message": "Password reset successful. You can now log in with your new password."},
-            status=status.HTTP_200_OK,
-        )
+        return _ok("Password reset successful. You can now log in with your new password.")
