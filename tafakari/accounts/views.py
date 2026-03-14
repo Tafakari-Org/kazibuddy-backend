@@ -37,7 +37,7 @@ import jwt
 import json
 import requests
 from utils.views import upload_file_to_supabase,get_file_url_from_supabase
-from utils.custom_error import error_response
+from utils.custom_error import error_response, _ok, _err, _serializer_errors_to_message
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from utils.logger import get_logger
@@ -756,40 +756,6 @@ class PasswordResetView(APIView):
 # ---------------------------------------------------------------------------
 # Secure token-based password reset (new endpoints, keeps OTP flow above)
 # ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# Shared response helpers for the password reset views
-# ---------------------------------------------------------------------------
-
-def _ok(message):
-    """Standard success envelope used across password reset views."""
-    return Response(
-        {"success": True, "message": message, "status_code": status.HTTP_200_OK},
-        status=status.HTTP_200_OK,
-    )
-
-
-def _err(message, status_code=status.HTTP_400_BAD_REQUEST):
-    """Standard error envelope used across password reset views."""
-    return Response(
-        {"success": False, "message": message, "status_code": status_code},
-        status=status_code,
-    )
-
-
-def _serializer_errors_to_message(errors):
-    """
-    Flatten DRF serializer error dicts into a single human-readable string.
-    e.g. {'token': ['Invalid or expired reset link.']}  →  'Invalid or expired reset link.'
-    """
-    parts = []
-    for field_errors in errors.values():
-        if isinstance(field_errors, list):
-            for err in field_errors:
-                parts.append(str(err))
-        else:
-            parts.append(str(field_errors))
-    return " ".join(parts) if parts else "Invalid request."
 
 
 class PasswordResetRequestView(APIView):

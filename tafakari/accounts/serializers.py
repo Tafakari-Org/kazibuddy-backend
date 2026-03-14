@@ -103,9 +103,9 @@ class GoogleOAuthUserSerializer(serializers.ModelSerializer):
         return user
 
 
-# ---------------------------------------------------------------------------
+
 # Password Reset (token-based, secure)
-# ---------------------------------------------------------------------------
+
 
 class PasswordResetRequestSerializer(serializers.Serializer):
     """
