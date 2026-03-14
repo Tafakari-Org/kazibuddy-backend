@@ -789,7 +789,7 @@ class PasswordResetRequestView(APIView):
         
         # Build the frontend reset URL
         frontend_url = settings.FRONTEND_URL[1] if settings.FRONTEND_URL else ""
-        reset_link = f"{frontend_url}/reset-password?uid={uidb64}&token={token}"
+        reset_link = f"{frontend_url}/auth/confirm-password-reset?uid={uidb64}&token={token}"
 
         # Log the link for easy dev testing
         logger.debug(f"Password reset link for {user.email}: {reset_link}")
