@@ -59,6 +59,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ('worker', 'Worker'),
         ('employer', 'Employer'),
         ('admin', 'Admin'),
+        ('super_admin', 'Super Admin'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -66,7 +67,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     phone_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
     email = models.EmailField(max_length=255, unique=True, null=True, blank=True)
     password = models.CharField(max_length=255)  # Handled by AbstractBaseUser
-    user_type = models.CharField(max_length=10, choices=USER_TYPES)
+    user_type = models.CharField(max_length=50, choices=USER_TYPES)
     full_name = models.CharField(max_length=255)
     profile_photo_url = models.URLField(max_length=500, null=True, blank=True)
 

@@ -820,9 +820,9 @@ class PasswordResetRequestView(APIView):
         # Generate secure token and uidb64
         token = PasswordResetTokenGenerator().make_token(user)
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
-
+        
         # Build the frontend reset URL
-        frontend_url = settings.FRONTEND_URL[0] if settings.FRONTEND_URL else ""
+        frontend_url = settings.FRONTEND_URL[1] if settings.FRONTEND_URL else ""
         reset_link = f"{frontend_url}/reset-password?uid={uidb64}&token={token}"
 
         # Log the link for easy dev testing
