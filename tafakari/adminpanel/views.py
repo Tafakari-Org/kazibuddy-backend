@@ -7,7 +7,12 @@ from django.shortcuts import get_object_or_404
 from accounts.models import CustomUser
 from jobs.models import Job
 from jobs.serializers import JobSerializer
-from .serializers import ApproveUserSerializer, UserStatusSerializer
+from .serializers import (
+    ApproveUserSerializer,
+    UserStatusSerializer,
+    CreateAdminSerializer,
+    AdminDetailSerializer,
+)
 from rest_framework import status
 from applications.models import JobApplication
 from applications.serializers import JobApplicationSerializer
@@ -386,3 +391,223 @@ class ListEmployerProfilesView(APIView):
 
         serializer = EmployerProfileSerializer(employers, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# Custom permission: only super_admin users may manage admin accounts
+# ---------------------------------------------------------------------------
+
+class IsSuperAdmin(permissions.BasePermission):
+    """Allow access only to authenticated users whose user_type is 'super_admin'."""
+
+    message = "Only super-admin users can perform this action."
+
+    def has_permission(self, request, view):
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.user_type == "super_admin"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Admin / SuperAdmin creation
+# ---------------------------------------------------------------------------
+
+class CreateAdminView(APIView):
+    """
+    POST /api/adminpanel/admins/create/
+    Create a new admin account. Only super_admins can call this.
+    """
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request):
+        serializer = CreateAdminSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response(
+                message="Validation failed",
+                errors=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        data = serializer.validated_data
+        with transaction.atomic():
+            user = CustomUser.objects.create_user(
+                email=data["email"],
+                phone_number=data.get("phone_number"),
+                password=data["password"],
+                full_name=data["full_name"],
+                user_type="admin",
+                is_verified=True,        # admins are trusted — no approval needed
+                email_verified=True,
+                is_staff=True,
+            )
+
+        return Response(
+            {
+                "message": "Admin created successfully",
+                "admin": AdminDetailSerializer(user).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CreateSuperAdminView(APIView):
+    """
+    POST /api/adminpanel/superadmins/create/
+    Create a new super_admin account. Only existing super_admins can call this.
+    """
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request):
+        serializer = CreateAdminSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response(
+                message="Validation failed",
+                errors=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        data = serializer.validated_data
+        with transaction.atomic():
+            user = CustomUser.objects.create_user(
+                email=data["email"],
+                phone_number=data.get("phone_number"),
+                password=data["password"],
+                full_name=data["full_name"],
+                user_type="super_admin",
+                is_verified=True,
+                email_verified=True,
+                is_staff=True,
+                is_superuser=True,
+            )
+
+        return Response(
+            {
+                "message": "Super admin created successfully",
+                "super_admin": AdminDetailSerializer(user).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Admin list & detail (get / update / delete)
+# ---------------------------------------------------------------------------
+
+class AdminListView(APIView):
+    """
+    GET /api/adminpanel/admins/
+    List all admin AND super_admin users. Supports optional ?user_type= filter.
+    Only super_admins can access this.
+    """
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        user_type = request.query_params.get("user_type")
+
+        if user_type:
+            if user_type not in ("admin", "super_admin"):
+                return error_response(
+                    message="Invalid user_type filter. Use 'admin' or 'super_admin'.",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+            admins = CustomUser.objects.filter(user_type=user_type).order_by("full_name")
+        else:
+            admins = CustomUser.objects.filter(
+                user_type__in=["admin", "super_admin"]
+            ).order_by("user_type", "full_name")
+
+        serializer = AdminDetailSerializer(admins, many=True)
+        return Response(
+            {
+                "message": "Admins retrieved successfully",
+                "total": admins.count(),
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminDetailView(APIView):
+    """
+    GET    /api/adminpanel/admins/<uuid:admin_id>/  — retrieve one admin
+    PATCH  /api/adminpanel/admins/<uuid:admin_id>/  — update fields (partial)
+    DELETE /api/adminpanel/admins/<uuid:admin_id>/  — delete the admin account
+    Only super_admins can access this.
+    """
+    permission_classes = [IsSuperAdmin]
+
+    def _get_admin(self, admin_id):
+        """Return the user if they are an admin/super_admin, else None."""
+        try:
+            user = CustomUser.objects.get(id=admin_id, user_type__in=["admin", "super_admin"])
+            return user
+        except CustomUser.DoesNotExist:
+            return None
+
+    def get(self, request, admin_id):
+        user = self._get_admin(admin_id)
+        if not user:
+            return error_response(
+                message="Admin not found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(
+            {"message": "Admin retrieved successfully", "data": AdminDetailSerializer(user).data},
+            status=status.HTTP_200_OK,
+        )
+
+    def patch(self, request, admin_id):
+        user = self._get_admin(admin_id)
+        if not user:
+            return error_response(
+                message="Admin not found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = AdminDetailSerializer(user, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return error_response(
+                message="Validation failed",
+                errors=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            serializer.save(updated_at=timezone.now())
+
+        return Response(
+            {"message": "Admin updated successfully", "data": serializer.data},
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request, admin_id):
+        user = self._get_admin(admin_id)
+        if not user:
+            return error_response(
+                message="Admin not found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Prevent a super_admin from deleting their own account
+        if str(user.id) == str(request.user.id):
+            return error_response(
+                message="You cannot delete your own admin account.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Only super_admins can delete other super_admins
+        if user.user_type == "super_admin" and request.user.user_type != "super_admin":
+            return error_response(
+                message="Only a super_admin can delete another super_admin.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+
+        deleted_email = user.email
+        user.delete()
+        return Response(
+            {"message": f"Admin '{deleted_email}' deleted successfully."},
+            status=status.HTTP_200_OK,
+        )
+

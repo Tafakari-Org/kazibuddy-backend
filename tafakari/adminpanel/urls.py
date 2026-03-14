@@ -1,7 +1,25 @@
 from django.urls import path
-from .views import ApproveUserView,DeactivateUserView,AllJobsListView,ApproveJobView,PendingJobsListView,ListPendingUsersView,UpdateJobApplicationStatusView,DeleteAllUsersView,GetAllUsersView,DeleteUserByEmailView,ListEmployerProfilesView
+from .views import (
+    ApproveUserView,
+    DeactivateUserView,
+    AllJobsListView,
+    ApproveJobView,
+    PendingJobsListView,
+    ListPendingUsersView,
+    UpdateJobApplicationStatusView,
+    DeleteAllUsersView,
+    GetAllUsersView,
+    DeleteUserByEmailView,
+    ListEmployerProfilesView,
+    # Admin / SuperAdmin management
+    CreateAdminView,
+    CreateSuperAdminView,
+    AdminListView,
+    AdminDetailView,
+)
 
 urlpatterns = [
+    # ── existing routes ────────────────────────────────────────────────────
     path('users/<uuid:user_id>/approve/', ApproveUserView.as_view(), name='approve_user'),
     path('users/<uuid:user_id>/deactivate/', DeactivateUserView.as_view(), name='deactivate_user'),
     path('admin/jobs/', AllJobsListView.as_view(), name='all-jobs-list'),
@@ -13,5 +31,10 @@ urlpatterns = [
     path('all-users/', GetAllUsersView.as_view(), name='get_all_users'),
     path('delete-user/<str:email>/', DeleteUserByEmailView.as_view(), name='delete_user_by_email'),
     path('employer-profiles/', ListEmployerProfilesView.as_view(), name='list-employer-profiles'),
-]
 
+    # ── admin / superadmin management ──────────────────────────────────────
+    path('admins/', AdminListView.as_view(), name='admin-list'),
+    path('admins/create/', CreateAdminView.as_view(), name='admin-create'),
+    path('admins/<uuid:admin_id>/', AdminDetailView.as_view(), name='admin-detail'),
+    path('superadmins/create/', CreateSuperAdminView.as_view(), name='superadmin-create'),
+]

@@ -797,7 +797,7 @@ class PasswordResetRequestView(APIView):
         send_password_reset_email(user, reset_link)
         logger.info(f"Password reset email dispatched for: {user.email}")
 
-        return _ok("If that email is registered, you will receive a reset link shortly.")
+        return _ok("If an account exists with this email, we've sent password reset instructions.")
 
 
 class PasswordResetConfirmView(APIView):
