@@ -152,221 +152,221 @@ class LoginView(APIView):
             status_code=status.HTTP_401_UNAUTHORIZED
         )
 
-class GoogleLogin(SocialLoginView):
-    adapter_class = GoogleOAuth2Adapter
-    client_class = OAuth2Client
-    callback_url = settings.GOOGLE_OAUTH_CALLBACK_URL
+# class GoogleLogin(SocialLoginView):
+#     adapter_class = GoogleOAuth2Adapter
+#     client_class = OAuth2Client
+#     callback_url = settings.GOOGLE_OAUTH_CALLBACK_URL
 
 
 
-class GoogleLoginCallback(APIView):
-    def get(self, request):
-        try:
+# class GoogleLoginCallback(APIView):
+#     def get(self, request):
+#         try:
            
-            # Handle Google OAuth errors
+#             # Handle Google OAuth errors
            
-            error = request.GET.get("error")
-            if error:
-                message = request.GET.get("error_description", "Google authentication failed")
-                logger.error(f"Google OAuth error: {error} - {message}")
-                return redirect(
-                    f"{settings.FRONTEND_URL}/auth/login"
-                    f"?status=error&message={message}"
-                )
+#             error = request.GET.get("error")
+#             if error:
+#                 message = request.GET.get("error_description", "Google authentication failed")
+#                 logger.error(f"Google OAuth error: {error} - {message}")
+#                 return redirect(
+#                     f"{settings.FRONTEND_URL}/auth/login"
+#                     f"?status=error&message={message}"
+#                 )
 
-            # Get authorization code
+#             # Get authorization code
             
-            code = request.GET.get("code")
-            if not code:
-                logger.warning("Google OAuth attempt without authorization code")
-                return redirect(
-                    f"{settings.FRONTEND_URL}/auth/login"
-                    f"?status=error&message=Authorization code not provided"
-                )
-
-            
-            # Get and validate user_type from state parameter
-            
-            state_param = request.GET.get("state")
-            requested_user_type = "worker"  # default
-            
-            if state_param:
-                try:
-                    state_data = json.loads(state_param)
-                    requested_user_type = state_data.get("user_type", "worker")
-                except json.JSONDecodeError:
-                    # If state parsing fails, default to worker
-                    pass
-            
-            ALLOWED_USER_TYPES = {"worker", "employer"}
-
-            user_type = (
-                requested_user_type
-                if requested_user_type in ALLOWED_USER_TYPES
-                else "worker"
-            )
+#             code = request.GET.get("code")
+#             if not code:
+#                 logger.warning("Google OAuth attempt without authorization code")
+#                 return redirect(
+#                     f"{settings.FRONTEND_URL}/auth/login"
+#                     f"?status=error&message=Authorization code not provided"
+#                 )
 
             
-            # Exchange code for tokens
+#             # Get and validate user_type from state parameter
             
-            token_url = "https://oauth2.googleapis.com/token"
-            data = {
-                "code": code,
-                "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
-                "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
-                "redirect_uri": settings.GOOGLE_OAUTH_CALLBACK_URL,
-                "grant_type": "authorization_code",
-            }
-
-            try:
-                response = requests.post(token_url, data=data)
-                response.raise_for_status()
-                token_data = response.json()
-                logger.info("Successfully exchanged Google OAuth code for tokens")
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Failed to exchange Google authorization code: {str(e)}")
-                return redirect(
-                    f"{settings.FRONTEND_URL}/auth/login"
-                    f"?status=error&message=Failed to exchange authorization code"
-                )
-
-            if "error" in token_data:
-                return redirect(
-                    f"{settings.FRONTEND_URL}/auth/login"
-                    f"?status=error&message=Token exchange failed"
-                )
-
-            if "id_token" not in token_data:
-                return redirect(
-                    f"{settings.FRONTEND_URL}/auth/login"
-                    f"?status=error&message=No ID token received from Google"
-                )
-
-           
-            # Verify ID token
+#             state_param = request.GET.get("state")
+#             requested_user_type = "worker"  # default
             
-            try:
-                decoded_token = id_token.verify_oauth2_token(
-                    token_data["id_token"],
-                    google_requests.Request(),
-                    settings.GOOGLE_OAUTH_CLIENT_ID
-                )
-            except Exception:
-                return redirect(
-                    f"{settings.FRONTEND_URL}/auth/login"
-                    f"?status=error&message=Invalid Google token"
-                )
-
-            # Extract user info
+#             if state_param:
+#                 try:
+#                     state_data = json.loads(state_param)
+#                     requested_user_type = state_data.get("user_type", "worker")
+#                 except json.JSONDecodeError:
+#                     # If state parsing fails, default to worker
+#                     pass
             
-            email = decoded_token.get("email")
-            name = decoded_token.get("name", "")
-            picture = decoded_token.get("picture", "")
+#             ALLOWED_USER_TYPES = {"worker", "employer"}
 
-            if not email:
-                return redirect(
-                    f"{settings.FRONTEND_URL}/auth/login"
-                    f"?status=error&message=Email not provided by Google"
-                )
+#             user_type = (
+#                 requested_user_type
+#                 if requested_user_type in ALLOWED_USER_TYPES
+#                 else "worker"
+#             )
+
+            
+#             # Exchange code for tokens
+            
+#             token_url = "https://oauth2.googleapis.com/token"
+#             data = {
+#                 "code": code,
+#                 "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
+#                 "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
+#                 "redirect_uri": settings.GOOGLE_OAUTH_CALLBACK_URL,
+#                 "grant_type": "authorization_code",
+#             }
+
+#             try:
+#                 response = requests.post(token_url, data=data)
+#                 response.raise_for_status()
+#                 token_data = response.json()
+#                 logger.info("Successfully exchanged Google OAuth code for tokens")
+#             except requests.exceptions.RequestException as e:
+#                 logger.error(f"Failed to exchange Google authorization code: {str(e)}")
+#                 return redirect(
+#                     f"{settings.FRONTEND_URL}/auth/login"
+#                     f"?status=error&message=Failed to exchange authorization code"
+#                 )
+
+#             if "error" in token_data:
+#                 return redirect(
+#                     f"{settings.FRONTEND_URL}/auth/login"
+#                     f"?status=error&message=Token exchange failed"
+#                 )
+
+#             if "id_token" not in token_data:
+#                 return redirect(
+#                     f"{settings.FRONTEND_URL}/auth/login"
+#                     f"?status=error&message=No ID token received from Google"
+#                 )
 
            
-            # Existing user flow
+#             # Verify ID token
             
-            try:
-                user = CustomUser.objects.get(email=email)
+#             try:
+#                 decoded_token = id_token.verify_oauth2_token(
+#                     token_data["id_token"],
+#                     google_requests.Request(),
+#                     settings.GOOGLE_OAUTH_CLIENT_ID
+#                 )
+#             except Exception:
+#                 return redirect(
+#                     f"{settings.FRONTEND_URL}/auth/login"
+#                     f"?status=error&message=Invalid Google token"
+#                 )
 
-                if not user.is_verified:
-                    logger.warning(f"Google login attempt for unverified user: {email}")
-                    message = (
-                        "Your account is pending admin approval. "
-                        "Please wait for approval before logging in."
-                    )
-                    return redirect(
-                        f"{settings.FRONTEND_URL}/auth/login"
-                        f"?status=pending_approval&message={message}"
-                    )
+#             # Extract user info
+            
+#             email = decoded_token.get("email")
+#             name = decoded_token.get("name", "")
+#             picture = decoded_token.get("picture", "")
 
-                tokens = get_tokens_for_user(user)
-                user_type_from_token = get_userType_fromToken(tokens["access"])
+#             if not email:
+#                 return redirect(
+#                     f"{settings.FRONTEND_URL}/auth/login"
+#                     f"?status=error&message=Email not provided by Google"
+#                 )
 
-                logger.info(f"Google login successful for user: {email}")
-                return redirect(
-                    f"{settings.FRONTEND_URL}/auth/google/success"
-                    f"?access_token={tokens['access']}"
-                    f"&refresh_token={tokens['refresh']}"
-                    f"&user_id={user.id}"
-                    f"&user_type={user_type_from_token}"
-                )
+           
+#             # Existing user flow
+            
+#             try:
+#                 user = CustomUser.objects.get(email=email)
+
+#                 if not user.is_verified:
+#                     logger.warning(f"Google login attempt for unverified user: {email}")
+#                     message = (
+#                         "Your account is pending admin approval. "
+#                         "Please wait for approval before logging in."
+#                     )
+#                     return redirect(
+#                         f"{settings.FRONTEND_URL}/auth/login"
+#                         f"?status=pending_approval&message={message}"
+#                     )
+
+#                 tokens = get_tokens_for_user(user)
+#                 user_type_from_token = get_userType_fromToken(tokens["access"])
+
+#                 logger.info(f"Google login successful for user: {email}")
+#                 return redirect(
+#                     f"{settings.FRONTEND_URL}/auth/google/success"
+#                     f"?access_token={tokens['access']}"
+#                     f"&refresh_token={tokens['refresh']}"
+#                     f"&user_id={user.id}"
+#                     f"&user_type={user_type_from_token}"
+#                 )
 
             
-            # New user flow - Registration
+#             # New user flow - Registration
             
-            except CustomUser.DoesNotExist:
-                try:
-                    # Double-check email uniqueness before creating account
-                    # This prevents race conditions and ensures data integrity
-                    if CustomUser.objects.filter(email=email).exists():
-                        logger.warning(f"Google registration failed: email {email} already exists")
-                        message = (
-                            "An account with this email already exists. "
-                            "Please try logging in instead."
-                        )
-                        return redirect(
-                            f"{settings.FRONTEND_URL}/auth/login"
-                            f"?status=error&message={message}"
-                        )
+#             except CustomUser.DoesNotExist:
+#                 try:
+#                     # Double-check email uniqueness before creating account
+#                     # This prevents race conditions and ensures data integrity
+#                     if CustomUser.objects.filter(email=email).exists():
+#                         logger.warning(f"Google registration failed: email {email} already exists")
+#                         message = (
+#                             "An account with this email already exists. "
+#                             "Please try logging in instead."
+#                         )
+#                         return redirect(
+#                             f"{settings.FRONTEND_URL}/auth/login"
+#                             f"?status=error&message={message}"
+#                         )
                     
-                    user_data = {
-                        "email": email,
-                        "full_name": name,
-                        "user_type": user_type,
-                        "profile_photo_url": picture,
-                    }
+#                     user_data = {
+#                         "email": email,
+#                         "full_name": name,
+#                         "user_type": user_type,
+#                         "profile_photo_url": picture,
+#                     }
 
-                    serializer = GoogleOAuthUserSerializer(data=user_data)
+#                     serializer = GoogleOAuthUserSerializer(data=user_data)
 
-                    if serializer.is_valid():
-                        serializer.save()
-                        logger.info(f"New user created via Google OAuth: {email}")
-                        message = (
-                            "Account created successfully! "
-                            "Your account is pending admin approval."
-                        )
-                        return redirect(
-                            f"{settings.FRONTEND_URL}/auth/login"
-                            f"?status=pending_approval&message={message}"
-                        )
+#                     if serializer.is_valid():
+#                         serializer.save()
+#                         logger.info(f"New user created via Google OAuth: {email}")
+#                         message = (
+#                             "Account created successfully! "
+#                             "Your account is pending admin approval."
+#                         )
+#                         return redirect(
+#                             f"{settings.FRONTEND_URL}/auth/login"
+#                             f"?status=pending_approval&message={message}"
+#                         )
 
-                    # If serializer validation fails, return error
-                    error_message = "Failed to create user account"
-                    if serializer.errors:
-                        # Extract first error message for user-friendly display
-                        first_error = next(iter(serializer.errors.values()))[0]
-                        error_message = str(first_error)
+#                     # If serializer validation fails, return error
+#                     error_message = "Failed to create user account"
+#                     if serializer.errors:
+#                         # Extract first error message for user-friendly display
+#                         first_error = next(iter(serializer.errors.values()))[0]
+#                         error_message = str(first_error)
                     
-                    return redirect(
-                        f"{settings.FRONTEND_URL}/auth/login"
-                        f"?status=error&message={error_message}"
-                    )
+#                     return redirect(
+#                         f"{settings.FRONTEND_URL}/auth/login"
+#                         f"?status=error&message={error_message}"
+#                     )
 
-                except Exception as e:
-                    # Log the exception for debugging
-                    logger.error(f"Google OAuth registration error for {email}: {str(e)}")
+#                 except Exception as e:
+#                     # Log the exception for debugging
+#                     logger.error(f"Google OAuth registration error for {email}: {str(e)}")
                     
-                    return redirect(
-                        f"{settings.FRONTEND_URL}/auth/login"
-                        f"?status=error&message=Failed to create user"
-                    )
+#                     return redirect(
+#                         f"{settings.FRONTEND_URL}/auth/login"
+#                         f"?status=error&message=Failed to create user"
+#                     )
 
     
-        # Catch-all safeguard
+#         # Catch-all safeguard
         
-        except Exception as e:
-            logger.critical(f"Unexpected error in Google OAuth callback: {str(e)}")
-            return redirect(
-                f"{settings.FRONTEND_URL}/auth/login"
-                f"?status=error&message=Unexpected authentication error"
-            )
+#         except Exception as e:
+#             logger.critical(f"Unexpected error in Google OAuth callback: {str(e)}")
+#             return redirect(
+#                 f"{settings.FRONTEND_URL}/auth/login"
+#                 f"?status=error&message=Unexpected authentication error"
+#             )
 
 
 # class GoogleLoginCallback(APIView):
