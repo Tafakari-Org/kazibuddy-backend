@@ -554,7 +554,10 @@ class AdminDetailView(APIView):
                 status_code=status.HTTP_404_NOT_FOUND,
             )
         return Response(
-            {"message": "Admin retrieved successfully", "data": AdminDetailSerializer(user).data},
+            {
+                "message": "Admin retrieved successfully", 
+                "data": AdminDetailSerializer(user).data
+            },
             status=status.HTTP_200_OK,
         )
 
@@ -610,4 +613,5 @@ class AdminDetailView(APIView):
             {"message": f"Admin '{deleted_email}' deleted successfully."},
             status=status.HTTP_200_OK,
         )
+
 
