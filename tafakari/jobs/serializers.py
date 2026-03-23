@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Job,JobCategory,JobSkill
+from .models import Job, JobCategory, JobSkill, JobImage, JobAttachment
 from skills.models import Skill
 from employers.serializers import EmployerProfileSerializer
 
@@ -30,11 +30,29 @@ class JobSkillSerializer(serializers.ModelSerializer):
             'experience_level': {'required': False},
             'skill': {'required': False},
         }
+
+
+class JobImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JobImage
+        fields = ['id', 'image_url', 'file_name', 'caption', 'is_cover', 'uploaded_at']
+        read_only_fields = ['id', 'image_url', 'file_name', 'uploaded_at']
+
+
+class JobAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JobAttachment
+        fields = ['id', 'file_url', 'file_name', 'file_size', 'file_type', 'uploaded_at']
+        read_only_fields = ['id', 'file_url', 'file_name', 'file_size', 'file_type', 'uploaded_at']
+
+
 class JobSerializer(serializers.ModelSerializer):
     category = JobCategorySerializer(read_only=True)
     job_skills = JobSkillSerializer(many=True, read_only=True)
     employer = EmployerProfileSerializer(read_only=True)
     employer_name = serializers.CharField(source='employer.company_name', read_only=True)
+    images = JobImageSerializer(many=True, read_only=True)
+    attachments = JobAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Job
@@ -46,7 +64,7 @@ class JobSerializer(serializers.ModelSerializer):
             'estimated_hours', 'max_applicants', 'status', 'visibility',
             'admin_approved', 'views_count', 'applications_count',
             'created_at', 'updated_at', 'expires_at', 'filled_at',
-            'job_skills'
+            'job_skills', 'images', 'attachments'
         ]
     
     def to_representation(self, instance):

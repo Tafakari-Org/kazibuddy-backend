@@ -96,3 +96,31 @@ class JobSkill(models.Model):
 
     class Meta:
         unique_together = ('job', 'skill')
+
+
+class JobImage(models.Model):
+    """Images attached to a job listing (site photos, cover image, etc.)"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='images')
+    image_url = models.URLField(max_length=1000)
+    file_name = models.CharField(max_length=255)
+    caption = models.CharField(max_length=500, null=True, blank=True)
+    is_cover = models.BooleanField(default=False)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.job.title} - {self.file_name}"
+
+
+class JobAttachment(models.Model):
+    """Non-image files attached to a job listing (PDFs, briefs, etc.)"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='attachments')
+    file_url = models.URLField(max_length=1000)
+    file_name = models.CharField(max_length=255)
+    file_size = models.IntegerField(null=True, blank=True, help_text='File size in bytes')
+    file_type = models.CharField(max_length=100, null=True, blank=True, help_text='MIME type')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.job.title} - {self.file_name}"

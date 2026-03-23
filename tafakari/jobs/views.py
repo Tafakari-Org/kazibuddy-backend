@@ -1,8 +1,8 @@
 from time import timezone
-from .serializers import JobSerializer,JobCategorySerializer,JobSkillSerializer
+from .serializers import JobSerializer, JobCategorySerializer, JobSkillSerializer, JobImageSerializer, JobAttachmentSerializer
 from .search_serializers import JobSearchSerializer, JobSearchQuerySerializer
 from rest_framework import views, permissions, status
-from .models import Job, JobCategory, JobSkill
+from .models import Job, JobCategory, JobSkill, JobImage, JobAttachment
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
@@ -14,6 +14,10 @@ from employers.models import EmployerProfile
 from skills.models import Skill
 from utils.custom_pagination import CustomPagination
 from utils.views import send_otp_to_email
+from utils.file_upload import FileUploadService
+import logging
+
+logger = logging.getLogger(__name__)
 #Job Categories endpoints
 
 class JobCategoriesListView(views.APIView):
@@ -166,44 +170,59 @@ class CreateJobView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = JobSerializer(data=request.data, context={'request': request})
-        # check whether the category exists in the database
+        # ── Validate category ──────────────────────────────────────────────
+        category = None
         if 'category' in request.data:
             try:
                 category = JobCategory.objects.get(pk=request.data['category'])
-                request.data['category'] = category.id
             except JobCategory.DoesNotExist:
                 return Response({"error": "Category not found"}, status=404)
-        
-        # check wheather the authenticated user has an employer profile and get profile of the user 
+
+        # ── Validate employer profile ──────────────────────────────────────
         try:
             employer_profile = EmployerProfile.objects.get(user=request.user)
-            request.data['employer'] = employer_profile.id
         except EmployerProfile.DoesNotExist:
-            return Response({"error": "Employer profile not found"}, status=404)    
-        if serializer.is_valid():
-            job = serializer.save(employer=employer_profile,category=category)
-            # Send notification for job creation
-            send_otp_to_email(
-                user=request.user, 
-                otp_type='job_notification', 
-                action_type='created',
-                job_title=job.title,
-                job_status=job.get_status_display()
-            )
-            return Response(
-                {
-                    "message": "Job created successfully",
-                    "data": JobSerializer(job).data
-                },
-                status=201
-            )
-        # send email to admin for approval (keep this as-is if that was the intention, 
-        # but typical check would be if it failed. However the snippet shows it outside if serializer.is_valid())
-        # The user's earlier edit added it here, likely meaning if validation fails.
-        # But usually you notify for SUCCESS. Let's fix the logic for success.
-        return Response(serializer.errors, status=400)
-    
+            return Response({"error": "Employer profile not found"}, status=404)
+
+        serializer = JobSerializer(data=request.data, context={'request': request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        job = serializer.save(employer=employer_profile, category=category)
+        file_service = FileUploadService()
+
+        # ── Optional: cover image upload ───────────────────────────────────
+        if 'cover_image' in request.FILES:
+            try:
+                url = file_service.upload(request.FILES['cover_image'], subfolder='images')
+                JobImage.objects.create(job=job, image_url=url, file_name=request.FILES['cover_image'].name, is_cover=True)
+            except ValueError as e:
+                job.delete()
+                return Response({"error": str(e)}, status=400)
+
+        # ── Optional: multiple attachment uploads ──────────────────────────
+        for f in request.FILES.getlist('attachments'):
+            try:
+                url = file_service.upload(f, subfolder='documents')
+                import mimetypes
+                mime_type, _ = mimetypes.guess_type(f.name)
+                JobAttachment.objects.create(job=job, file_url=url, file_name=f.name, file_size=f.size, file_type=mime_type)
+            except ValueError as e:
+                logger.warning(f"Attachment skipped ({f.name}): {e}")
+
+        # ── Notify ────────────────────────────────────────────────────────
+        send_otp_to_email(
+            user=request.user,
+            otp_type='job_notification',
+            action_type='created',
+            job_title=job.title,
+            job_status=job.get_status_display()
+        )
+        return Response(
+            {"message": "Job created successfully", "data": JobSerializer(job, context={'request': request}).data},
+            status=201
+        )
+
 
 class UpdateJobView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -211,19 +230,34 @@ class UpdateJobView(views.APIView):
     def put(self, request, job_id):
         try:
             job = Job.objects.get(pk=job_id)
-            serializer = JobSerializer(job, data=request.data)
-            if serializer.is_valid():
-                updated_job = serializer.save()
-                return Response(
-                    {
-                        "message": "Job updated successfully",
-                        "data": JobSerializer(updated_job).data
-                    },
-                    status=200
-                )
-            return Response(serializer.errors, status=400)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
+
+        serializer = JobSerializer(job, data=request.data, context={'request': request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        updated_job = serializer.save()
+        file_service = FileUploadService()
+
+        # ── Optional: replace cover image ──────────────────────────────────
+        if 'cover_image' in request.FILES:
+            try:
+                # Remove existing cover image from disk
+                existing_cover = job.images.filter(is_cover=True).first()
+                if existing_cover:
+                    file_service.remove(existing_cover.image_url)
+                    existing_cover.delete()
+                url = file_service.upload(request.FILES['cover_image'], subfolder='images')
+                JobImage.objects.create(job=updated_job, image_url=url, file_name=request.FILES['cover_image'].name, is_cover=True)
+            except ValueError as e:
+                return Response({"error": str(e)}, status=400)
+
+        return Response(
+            {"message": "Job updated successfully", "data": JobSerializer(updated_job, context={'request': request}).data},
+            status=200
+        )
+
         
 
 class DeleteJobView(views.APIView):

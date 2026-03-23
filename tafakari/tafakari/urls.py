@@ -16,7 +16,9 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path, re_path
-from accounts.views import  GoogleLoginCallback, GoogleLogin,LoginPage
+from django.conf import settings
+from django.conf.urls.static import static
+from accounts.views import GoogleLoginCallback, GoogleLogin, LoginPage
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -44,4 +46,4 @@ urlpatterns = [
     path('api/messages/', include('messaging.urls')),
     path('api/adminpanel/', include('adminpanel.urls')),
 
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
