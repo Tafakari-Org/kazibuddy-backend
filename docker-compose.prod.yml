@@ -9,6 +9,7 @@ services:
     volumes:
       - static_volume:/app/tafakari/staticfiles
       - media_volume:/app/tafakari/media
+      - uploads_volume:/app/tafakari/uploads
     ports:
       - "8000:8000"
     env_file:
@@ -22,6 +23,7 @@ services:
 volumes:
   static_volume:
   media_volume:
+  uploads_volume:
 
 networks:
   kazi-network-prod:
