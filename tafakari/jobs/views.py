@@ -195,25 +195,38 @@ class CreateJobView(views.APIView):
         job = serializer.save(employer=employer_profile, category=category)
         file_service = FileUploadService()
 
-        # ── Optional: cover image upload ───────────────────────────────────
-        if 'cover_image' in request.FILES:
-            if job.images.count() >= MAX_IMAGES_PER_JOB:
-                job.delete()
-                return Response(
-                    {"error": f"A job may have at most {MAX_IMAGES_PER_JOB} images."},
-                    status=400
-                )
+        # ── Optional: cover image (is_cover=True) ──────────────────────────
+        cover_file = request.FILES.get('cover_image')
+        extra_images = request.FILES.getlist('images')
+        total_images = (1 if cover_file else 0) + len(extra_images)
+
+        if total_images > MAX_IMAGES_PER_JOB:
+            job.delete()
+            return Response(
+                {"error": f"A job may have at most {MAX_IMAGES_PER_JOB} images total "
+                          f"(cover_image + images). You provided {total_images}."},
+                status=400
+            )
+
+        if cover_file:
             try:
-                url = file_service.upload(request.FILES['cover_image'], subfolder='images')
-                JobImage.objects.create(job=job, image_url=url, file_name=request.FILES['cover_image'].name, is_cover=True)
+                url = file_service.upload(cover_file, subfolder='images')
+                JobImage.objects.create(job=job, image_url=url, file_name=cover_file.name, is_cover=True)
             except ValueError as e:
                 job.delete()
                 return Response({"error": str(e)}, status=400)
 
-        # ── Optional: multiple attachment uploads ──────────────────────────
+        # ── Optional: extra images (is_cover=False) ────────────────────────
+        for img in extra_images:
+            try:
+                url = file_service.upload(img, subfolder='images')
+                JobImage.objects.create(job=job, image_url=url, file_name=img.name, is_cover=False)
+            except ValueError as e:
+                logger.warning(f"Image skipped ({img.name}): {e}")
+
+        # ── Optional: attachments ──────────────────────────────────────────
         attachment_files = request.FILES.getlist('attachments')
-        existing_attachments = job.attachments.count()
-        slots_available = MAX_ATTACHMENTS_PER_JOB - existing_attachments
+        slots_available = MAX_ATTACHMENTS_PER_JOB - job.attachments.count()
 
         if len(attachment_files) > slots_available:
             job.delete()
@@ -268,20 +281,14 @@ class UpdateJobView(views.APIView):
 
         file_service = FileUploadService()
 
-        # Bug 4 fixed: wrap all DB writes in an atomic block
         with transaction.atomic():
             updated_job = serializer.save()
 
-            # ── Optional: replace cover image ──────────────────────────────
-            if "cover_image" in request.FILES:
-                # Bug 3 fixed: guard is irrelevant when swapping the cover —
-                # removed the non_cover_count check entirely.
-
-                # Bug 5 fixed: upload the new file BEFORE deleting the old one
+            # ── Optional: replace cover image (is_cover=True) ──────────────
+            cover_file = request.FILES.get('cover_image')
+            if cover_file:
                 try:
-                    new_url = file_service.upload(
-                        request.FILES["cover_image"], subfolder="images"
-                    )
+                    new_url = file_service.upload(cover_file, subfolder='images')
                 except ValueError as e:
                     return Response({"error": str(e)}, status=400)
 
@@ -293,9 +300,26 @@ class UpdateJobView(views.APIView):
                 JobImage.objects.create(
                     job=updated_job,
                     image_url=new_url,
-                    file_name=request.FILES["cover_image"].name,
+                    file_name=cover_file.name,
                     is_cover=True,
                 )
+
+            # ── Optional: add extra images (is_cover=False) ────────────────
+            extra_images = request.FILES.getlist('images')
+            if extra_images:
+                existing_image_count = updated_job.images.count()
+                slots_available = MAX_IMAGES_PER_JOB - existing_image_count
+                if len(extra_images) > slots_available:
+                    return Response(
+                        {"error": f"Only {slots_available} image slot(s) remain (max {MAX_IMAGES_PER_JOB} total including cover)."},
+                        status=400
+                    )
+                for img in extra_images:
+                    try:
+                        url = file_service.upload(img, subfolder='images')
+                        JobImage.objects.create(job=updated_job, image_url=url, file_name=img.name, is_cover=False)
+                    except ValueError as e:
+                        logger.warning(f"Image skipped ({img.name}): {e}")
 
             # ── Optional: add attachments ──────────────────────────────────
             attachment_files = request.FILES.getlist("attachments")
@@ -304,16 +328,10 @@ class UpdateJobView(views.APIView):
                 slots_available = MAX_ATTACHMENTS_PER_JOB - existing_count
                 if len(attachment_files) > slots_available:
                     return Response(
-                        {
-                            "error": (
-                                f"Only {slots_available} attachment slot(s) remain "
-                                f"(max {MAX_ATTACHMENTS_PER_JOB})."
-                            )
-                        },
+                        {"error": f"Only {slots_available} attachment slot(s) remain (max {MAX_ATTACHMENTS_PER_JOB})."},
                         status=400,
                     )
 
-                # Bug 6 fixed: surface per-file errors instead of silently skipping
                 upload_errors = []
                 uploaded = []
                 for f in attachment_files:
@@ -333,14 +351,10 @@ class UpdateJobView(views.APIView):
                         upload_errors.append({"file": f.name, "error": str(e)})
 
                 if upload_errors:
-                    # Roll back the transaction — no partial saves
-                    return Response(
-                        {"errors": upload_errors}, status=400
-                    )
+                    return Response({"errors": upload_errors}, status=400)
 
                 JobAttachment.objects.bulk_create(uploaded)
 
-        # Bug 8 fixed: reuse serializer.data instead of re-serialising
         return Response(
             {"message": "Job updated successfully", "data": serializer.data},
             status=200,
