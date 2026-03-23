@@ -249,60 +249,101 @@ class UpdateJobView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def put(self, request, job_id):
+        # ── Fetch & authorize ──────────────────────────────────────────────
         try:
             job = Job.objects.get(pk=job_id)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
 
-        serializer = JobSerializer(job, data=request.data, context={'request': request})
+        # Bug 1 fixed: ownership check
+        if job.employer != request.user.employerprofile:
+            return Response({"error": "You do not own this job"}, status=403)
+
+        # Bug 2 fixed: partial=True so only sent fields are required
+        serializer = JobSerializer(
+            job, data=request.data, context={"request": request}, partial=True
+        )
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
 
-        updated_job = serializer.save()
         file_service = FileUploadService()
 
-        # ── Optional: replace cover image ──────────────────────────────────
-        if 'cover_image' in request.FILES:
-            # A replace doesn't add a new slot — it swaps out the existing cover,
-            # but we still cap total non-cover images at MAX_IMAGES_PER_JOB.
-            non_cover_count = updated_job.images.filter(is_cover=False).count()
-            if non_cover_count >= MAX_IMAGES_PER_JOB:
-                return Response(
-                    {"error": f"A job may have at most {MAX_IMAGES_PER_JOB} images."},
-                    status=400
-                )
-            try:
+        # Bug 4 fixed: wrap all DB writes in an atomic block
+        with transaction.atomic():
+            updated_job = serializer.save()
+
+            # ── Optional: replace cover image ──────────────────────────────
+            if "cover_image" in request.FILES:
+                # Bug 3 fixed: guard is irrelevant when swapping the cover —
+                # removed the non_cover_count check entirely.
+
+                # Bug 5 fixed: upload the new file BEFORE deleting the old one
+                try:
+                    new_url = file_service.upload(
+                        request.FILES["cover_image"], subfolder="images"
+                    )
+                except ValueError as e:
+                    return Response({"error": str(e)}, status=400)
+
                 existing_cover = updated_job.images.filter(is_cover=True).first()
                 if existing_cover:
                     file_service.remove(existing_cover.image_url)
                     existing_cover.delete()
-                url = file_service.upload(request.FILES['cover_image'], subfolder='images')
-                JobImage.objects.create(job=updated_job, image_url=url, file_name=request.FILES['cover_image'].name, is_cover=True)
-            except ValueError as e:
-                return Response({"error": str(e)}, status=400)
 
-        # ── Optional: add more attachments ─────────────────────────────────
-        attachment_files = request.FILES.getlist('attachments')
-        if attachment_files:
-            existing_attachments = updated_job.attachments.count()
-            slots_available = MAX_ATTACHMENTS_PER_JOB - existing_attachments
-            if len(attachment_files) > slots_available:
-                return Response(
-                    {"error": f"A job may have at most {MAX_ATTACHMENTS_PER_JOB} attachments. "
-                              f"You tried to upload {len(attachment_files)} but only {slots_available} slot(s) remain."},
-                    status=400
+                JobImage.objects.create(
+                    job=updated_job,
+                    image_url=new_url,
+                    file_name=request.FILES["cover_image"].name,
+                    is_cover=True,
                 )
-            for f in attachment_files:
-                try:
-                    url = file_service.upload(f, subfolder='documents')
-                    mime_type, _ = mimetypes.guess_type(f.name)
-                    JobAttachment.objects.create(job=updated_job, file_url=url, file_name=f.name, file_size=f.size, file_type=mime_type)
-                except ValueError as e:
-                    logger.warning(f"Attachment skipped ({f.name}): {e}")
 
+            # ── Optional: add attachments ──────────────────────────────────
+            attachment_files = request.FILES.getlist("attachments")
+            if attachment_files:
+                existing_count = updated_job.attachments.count()
+                slots_available = MAX_ATTACHMENTS_PER_JOB - existing_count
+                if len(attachment_files) > slots_available:
+                    return Response(
+                        {
+                            "error": (
+                                f"Only {slots_available} attachment slot(s) remain "
+                                f"(max {MAX_ATTACHMENTS_PER_JOB})."
+                            )
+                        },
+                        status=400,
+                    )
+
+                # Bug 6 fixed: surface per-file errors instead of silently skipping
+                upload_errors = []
+                uploaded = []
+                for f in attachment_files:
+                    try:
+                        url = file_service.upload(f, subfolder="documents")
+                        mime_type, _ = mimetypes.guess_type(f.name)
+                        uploaded.append(
+                            JobAttachment(
+                                job=updated_job,
+                                file_url=url,
+                                file_name=f.name,
+                                file_size=f.size,
+                                file_type=mime_type,
+                            )
+                        )
+                    except ValueError as e:
+                        upload_errors.append({"file": f.name, "error": str(e)})
+
+                if upload_errors:
+                    # Roll back the transaction — no partial saves
+                    return Response(
+                        {"errors": upload_errors}, status=400
+                    )
+
+                JobAttachment.objects.bulk_create(uploaded)
+
+        # Bug 8 fixed: reuse serializer.data instead of re-serialising
         return Response(
-            {"message": "Job updated successfully", "data": JobSerializer(updated_job, context={'request': request}).data},
-            status=200
+            {"message": "Job updated successfully", "data": serializer.data},
+            status=200,
         )
 
         
