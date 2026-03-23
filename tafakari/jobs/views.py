@@ -15,10 +15,14 @@ from skills.models import Skill
 from utils.custom_pagination import CustomPagination
 from utils.views import send_otp_to_email
 from utils.file_upload import FileUploadService
+import mimetypes
 import logging
 
 logger = logging.getLogger(__name__)
-#Job Categories endpoints
+
+# Per-job file limits
+MAX_IMAGES_PER_JOB = 3
+MAX_ATTACHMENTS_PER_JOB = 5
 
 class JobCategoriesListView(views.APIView):
     pagination_class = CustomPagination
@@ -193,6 +197,12 @@ class CreateJobView(views.APIView):
 
         # ── Optional: cover image upload ───────────────────────────────────
         if 'cover_image' in request.FILES:
+            if job.images.count() >= MAX_IMAGES_PER_JOB:
+                job.delete()
+                return Response(
+                    {"error": f"A job may have at most {MAX_IMAGES_PER_JOB} images."},
+                    status=400
+                )
             try:
                 url = file_service.upload(request.FILES['cover_image'], subfolder='images')
                 JobImage.objects.create(job=job, image_url=url, file_name=request.FILES['cover_image'].name, is_cover=True)
@@ -201,10 +211,21 @@ class CreateJobView(views.APIView):
                 return Response({"error": str(e)}, status=400)
 
         # ── Optional: multiple attachment uploads ──────────────────────────
-        for f in request.FILES.getlist('attachments'):
+        attachment_files = request.FILES.getlist('attachments')
+        existing_attachments = job.attachments.count()
+        slots_available = MAX_ATTACHMENTS_PER_JOB - existing_attachments
+
+        if len(attachment_files) > slots_available:
+            job.delete()
+            return Response(
+                {"error": f"A job may have at most {MAX_ATTACHMENTS_PER_JOB} attachments. "
+                          f"You tried to upload {len(attachment_files)} but only {slots_available} slot(s) remain."},
+                status=400
+            )
+
+        for f in attachment_files:
             try:
                 url = file_service.upload(f, subfolder='documents')
-                import mimetypes
                 mime_type, _ = mimetypes.guess_type(f.name)
                 JobAttachment.objects.create(job=job, file_url=url, file_name=f.name, file_size=f.size, file_type=mime_type)
             except ValueError as e:
@@ -242,9 +263,16 @@ class UpdateJobView(views.APIView):
 
         # ── Optional: replace cover image ──────────────────────────────────
         if 'cover_image' in request.FILES:
+            # A replace doesn't add a new slot — it swaps out the existing cover,
+            # but we still cap total non-cover images at MAX_IMAGES_PER_JOB.
+            non_cover_count = updated_job.images.filter(is_cover=False).count()
+            if non_cover_count >= MAX_IMAGES_PER_JOB:
+                return Response(
+                    {"error": f"A job may have at most {MAX_IMAGES_PER_JOB} images."},
+                    status=400
+                )
             try:
-                # Remove existing cover image from disk
-                existing_cover = job.images.filter(is_cover=True).first()
+                existing_cover = updated_job.images.filter(is_cover=True).first()
                 if existing_cover:
                     file_service.remove(existing_cover.image_url)
                     existing_cover.delete()
@@ -252,6 +280,25 @@ class UpdateJobView(views.APIView):
                 JobImage.objects.create(job=updated_job, image_url=url, file_name=request.FILES['cover_image'].name, is_cover=True)
             except ValueError as e:
                 return Response({"error": str(e)}, status=400)
+
+        # ── Optional: add more attachments ─────────────────────────────────
+        attachment_files = request.FILES.getlist('attachments')
+        if attachment_files:
+            existing_attachments = updated_job.attachments.count()
+            slots_available = MAX_ATTACHMENTS_PER_JOB - existing_attachments
+            if len(attachment_files) > slots_available:
+                return Response(
+                    {"error": f"A job may have at most {MAX_ATTACHMENTS_PER_JOB} attachments. "
+                              f"You tried to upload {len(attachment_files)} but only {slots_available} slot(s) remain."},
+                    status=400
+                )
+            for f in attachment_files:
+                try:
+                    url = file_service.upload(f, subfolder='documents')
+                    mime_type, _ = mimetypes.guess_type(f.name)
+                    JobAttachment.objects.create(job=updated_job, file_url=url, file_name=f.name, file_size=f.size, file_type=mime_type)
+                except ValueError as e:
+                    logger.warning(f"Attachment skipped ({f.name}): {e}")
 
         return Response(
             {"message": "Job updated successfully", "data": JobSerializer(updated_job, context={'request': request}).data},

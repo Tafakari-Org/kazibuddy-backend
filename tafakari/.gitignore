@@ -7,3 +7,6 @@
 *.sqlite3
 tafakarienv/
 logs/
+media/
+uploads/*
+staticfiles/*
