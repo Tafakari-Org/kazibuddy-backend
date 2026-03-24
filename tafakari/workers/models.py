@@ -47,12 +47,8 @@ class WorkerProfile(models.Model):
         return int((filled / total) * 100) if total else 0
     
     def clean(self):
-        if self.user.user_type != "worker":
-            raise ValidationError("Only users with user_type='worker' can have a WorkerProfile.")
-
-        from employers.models import EmployerProfile
-        if EmployerProfile.objects.filter(user=self.user).exists():
-            raise ValidationError("User already has an EmployerProfile.")
+        if self.user.user_type not in ["worker", "both"]:
+            raise ValidationError("Only users with user_type='worker' or 'both' can have a WorkerProfile.")
 
 
     def save(self, *args, **kwargs):

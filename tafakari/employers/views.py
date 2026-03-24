@@ -6,6 +6,7 @@ from .models import EmployerProfile
 from .serializers import EmployerProfileSerializer
 from utils.custom_error import error_response
 from utils.custom_pagination import CustomPagination
+from django.db import transaction
 
 
 class CreateEmployerProfileView(APIView):
@@ -22,7 +23,13 @@ class CreateEmployerProfileView(APIView):
         
         serializer = EmployerProfileSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(user=request.user)
+            with transaction.atomic():
+                # Upgrade user_type if they are already a worker
+                if request.user.user_type == 'worker':
+                    request.user.user_type = 'both'
+                    request.user.save()
+                
+                serializer.save(user=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return error_response(
             message="Invalid data",

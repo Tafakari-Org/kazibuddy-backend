@@ -29,7 +29,14 @@ class CreateWorkerProfileView(APIView):
         serializer = WorkerProfileSerializer(data=request.data)
         if serializer.is_valid():
             try:
-                serializer.save(user=request.user)
+                from django.db import transaction
+                with transaction.atomic():
+                    # Upgrade user_type if they are already an employer
+                    if request.user.user_type == 'employer':
+                        request.user.user_type = 'both'
+                        request.user.save()
+                    
+                    serializer.save(user=request.user)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             except IntegrityError:
                 return error_response(

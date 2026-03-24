@@ -11,6 +11,7 @@ from .utils import check_if_user_isOwner
 from utils.custom_pagination import CustomPagination
 from django.db import transaction
 from utils.views import send_otp_to_email
+from rest_framework.permissions import IsAdminUser
 
 
 # Create your views here.
@@ -263,7 +264,7 @@ class AllJobApplicationListView(APIView):
     """
     View to list all job applications.
     """
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
     pagination_class = CustomPagination
     serializer_class = JobApplicationSerializer
 

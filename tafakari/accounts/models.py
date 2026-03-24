@@ -58,6 +58,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     USER_TYPES = [
         ('worker', 'Worker'),
         ('employer', 'Employer'),
+        ('both', 'Both'),
         ('admin', 'Admin'),
         ('super_admin', 'Super Admin'),
     ]

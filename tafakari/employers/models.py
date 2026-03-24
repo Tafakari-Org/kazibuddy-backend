@@ -39,12 +39,8 @@ class EmployerProfile(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     def clean(self):
-        if self.user.user_type != "employer":
-            raise ValidationError("Only users with user_type='employer' can have an EmployerProfile.")
-
-        from workers.models import WorkerProfile
-        if WorkerProfile.objects.filter(user=self.user).exists():
-            raise ValidationError("User already has a WorkerProfile.")
+        if self.user.user_type not in ["employer", "both"]:
+            raise ValidationError("Only users with user_type='employer' or 'both' can have an EmployerProfile.")
         
         
     def save(self, *args, **kwargs):

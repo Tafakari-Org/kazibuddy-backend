@@ -198,7 +198,7 @@ class GoogleLoginCallback(APIView):
                     # If state parsing fails, default to worker
                     pass
             
-            ALLOWED_USER_TYPES = {"worker", "employer"}
+            ALLOWED_USER_TYPES = {"worker", "employer", "both"}
 
             user_type = (
                 requested_user_type
@@ -390,7 +390,7 @@ class GoogleLoginCallback(APIView):
 
             requested_user_type = request.GET.get("user_type", "worker")
 
-            ALLOWED_USER_TYPES = {"worker","employer"}
+            ALLOWED_USER_TYPES = {"worker", "employer", "both"}
             user_type = (
                 requested_user_type
                 if requested_user_type in ALLOWED_USER_TYPES
