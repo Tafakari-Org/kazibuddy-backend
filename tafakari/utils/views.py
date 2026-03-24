@@ -123,35 +123,41 @@ def send_email_async(subject, html_message, recipient_list):
     def _send():
         try:
             # Get email configuration from Django settings
-            email_host = getattr(settings, 'EMAIL_HOST', 'smtp.gmail.com')
-            email_port = getattr(settings, 'EMAIL_PORT', 587)
+            email_host = getattr(settings, 'EMAIL_HOST', 'smtp.hostinger.com')
+            email_port = getattr(settings, 'EMAIL_PORT', 465)
             email_host_user = getattr(settings, 'EMAIL_HOST_USER', settings.DEFAULT_FROM_EMAIL)
             email_host_password = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
-            use_tls = getattr(settings, 'EMAIL_USE_TLS', True)
-            
+            use_ssl = getattr(settings, 'EMAIL_USE_SSL', True)
+            use_tls = getattr(settings, 'EMAIL_USE_TLS', False)
+
+            logger.info(
+                f"Connecting to {email_host}:{email_port} "
+                f"ssl={use_ssl} tls={use_tls} user={email_host_user}"
+            )
+
             # Create message
             msg = MIMEMultipart('alternative')
             msg['Subject'] = subject
             msg['From'] = settings.DEFAULT_FROM_EMAIL
             msg['To'] = ', '.join(recipient_list)
-            
+
             # Attach HTML content
             html_part = MIMEText(html_message, 'html')
             msg.attach(html_part)
-            
-            # Send email using SMTP
-            if use_tls:
-                server = smtplib.SMTP(email_host, email_port, timeout=20)
-                server.starttls()
-            else:
+
+            # Port 465 → implicit SSL; Port 587 → STARTTLS
+            if use_ssl:
                 server = smtplib.SMTP_SSL(email_host, email_port, timeout=20)
-            
+            else:
+                server = smtplib.SMTP(email_host, email_port, timeout=20)
+                if use_tls:
+                    server.starttls()
+
             if email_host_password:
                 server.login(email_host_user, email_host_password)
-            
+
             server.sendmail(settings.DEFAULT_FROM_EMAIL, recipient_list, msg.as_string())
             server.quit()
-            
             logger.info(f"Email sent successfully to {recipient_list}")
         except Exception as e:
             logger.error(f"Failed to send email: {str(e)}")
