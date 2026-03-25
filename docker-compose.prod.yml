@@ -8,8 +8,7 @@ services:
     command: daphne -b 0.0.0.0 -p 8000 tafakari.asgi:application
     volumes:
       - static_volume:/app/tafakari/staticfiles
-      - media_volume:/app/tafakari/media
-      - uploads_volume:/app/tafakari/uploads
+      - /var/www/kazibuddy-backend/kazibuddy-backend/tafakari/uploads:/app/tafakari/uploads
     ports:
       - "8000:8000"
     env_file:
@@ -22,8 +21,8 @@ services:
 
 volumes:
   static_volume:
-  media_volume:
-  uploads_volume:
+
+  
 
 networks:
   kazi-network-prod:
