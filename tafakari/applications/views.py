@@ -275,5 +275,66 @@ class AllJobApplicationListView(APIView):
         serializer = self.serializer_class(paginated_applications, many=True)
         return Response({
             'status': 'success',
-            'applications': serializer.data
+            'data': serializer.data
         }, status=200)
+
+#get pending jobs applications
+class PendingJobApplicationListView(APIView):
+    permission_classes = [IsAdminUser]
+    pagination_class = CustomPagination
+    serializer_class = JobApplicationSerializer
+
+    def get(self, request, *args, **kwargs):
+        try:
+            applications = JobApplication.objects.filter(status='pending')
+            paginator = self.pagination_class()
+            paginated_applications = paginator.paginate_queryset(applications, request)
+            serializer = self.serializer_class(paginated_applications, many=True)
+            return Response({
+            'status': 'success',
+            'data': serializer.data
+            }, status=200)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Failed to retrieve pending job applications.',
+                'errors': str(e)
+            }, status=500)
+
+#get total applications
+class TotalApplicationsView(APIView):
+    def get(self, request, *args, **kwargs):
+        try:
+            total_applications = JobApplication.objects.count()
+            return Response({
+                'status': 'success',
+                'data': total_applications
+            }, status=200)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Failed to retrieve total applications.',
+                'errors': str(e)
+            }, status=500)
+
+#get total applications by job
+class TotalApplicationsByJobView(APIView):
+    def get(self, request, *args, **kwargs):
+        try:
+            job_id = kwargs.get('job_id')
+            if not job_id:
+                return Response({
+                    'status': 'error',
+                    'message': 'Job ID is required.'
+                }, status=400)
+            total_applications = JobApplication.objects.filter(job_id=job_id).count()
+            return Response({
+                'status': 'success',
+                'data': total_applications
+            }, status=200)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Failed to retrieve total applications.',
+                'errors': str(e)
+            }, status=500)
