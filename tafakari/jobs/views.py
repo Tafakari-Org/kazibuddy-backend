@@ -853,3 +853,20 @@ class SearchJobsView(views.APIView):
                 'error': f'Search failed: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+#get total jobs
+class TotalJobsView(views.APIView):
+    def get(self, request):
+        try:
+            total_jobs = Job.objects.filter(admin_approved=True, status='active').count()
+            return Response({
+                'message': 'Total jobs fetched successfully',
+                "data": total_jobs
+                },status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'message': 'Failed to get total jobs',
+                'error': f'Failed to get total jobs: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+

@@ -3,10 +3,11 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from accounts.models import CustomUser
 from jobs.models import Job
-from jobs.serializers import JobSerializer
+from jobs.serializers import JobSerializer,JobListSerializer
 from .serializers import (
     ApproveUserSerializer,
     UserStatusSerializer,
@@ -194,23 +195,24 @@ class ApproveJobView(APIView):
 
 
 class PendingJobsListView(APIView):
-    """
-    List all jobs pending approval (admin_approved=False).
-    Only accessible by admin users.
-    """
     permission_classes = [permissions.IsAdminUser]
-    
+
     def get(self, request):
-        jobs = Job.objects.filter(admin_approved=False).order_by('-created_at')
-        serializer = JobSerializer(jobs, many=True)
-        return Response(
-            {
-                "message": "Pending jobs retrieved successfully",
-                "data": serializer.data,
-                "total": jobs.count()
-            },
-            status=status.HTTP_200_OK
-        )
+        jobs = Job.objects.filter(admin_approved=False)\
+            .select_related('employer', 'category')\
+            .annotate(skills_count=Count('job_skills'))\
+            .order_by('-created_at')
+
+        paginator = CustomPagination()
+        page = paginator.paginate_queryset(jobs, request)
+
+        serializer = JobListSerializer(page, many=True, context={'request': request})
+
+        return paginator.get_paginated_response({
+            "message": "Pending jobs retrieved successfully",
+            "data": serializer.data,
+            "total": paginator.page.paginator.count
+        })
     
 class ListPendingUsersView(APIView):
     permission_classes = [permissions.IsAdminUser]

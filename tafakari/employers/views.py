@@ -81,4 +81,18 @@ class UpdateEmployerProfileView(APIView):
                 status_code=status.HTTP_404_NOT_FOUND
             )  
         
-         
+#Total employers
+class TotalEmployersView(APIView):
+    def get(self, request):
+        try:
+            total_employers = EmployerProfile.objects.count()
+            return Response({
+                "message": "Total employers fetched successfully",
+                "data": total_employers
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return error_response(
+                message="Error fetching total employers",
+                errors={"error": str(e)},
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
