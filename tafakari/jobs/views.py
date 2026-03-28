@@ -869,4 +869,18 @@ class TotalJobsView(views.APIView):
                 'error': f'Failed to get total jobs: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+#total job categories
+class TotalJobCategoriesView(views.APIView):
+    def get(self, request):
+        try:
+            total_job_categories = JobCategory.objects.count()
+            return Response({
+                'message': 'Total job categories fetched successfully',
+                "data": total_job_categories
+                },status=status.HTTP_200_OK)
 
+        except Exception as e:
+            return Response({
+                'message': 'Failed to get total job categories',
+                'error': f'Failed to get total job categories: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

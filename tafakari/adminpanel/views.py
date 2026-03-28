@@ -184,7 +184,7 @@ class ApproveJobView(APIView):
                 action_type='admin_job_unapproved',
                 job_title=job.title
             )
-        
+        paginate_queryset
         return Response(
             {
                 "message": "Job unapproved successfully",
@@ -216,11 +216,13 @@ class PendingJobsListView(APIView):
     
 class ListPendingUsersView(APIView):
     permission_classes = [permissions.IsAdminUser]
+    custom_pagination = CustomPagination
     def get(self, request):
         users = CustomUser.objects.filter(is_verified=False)
+        paginated_users = self.custom_pagination().paginate_queryset(users, request)
         user_data = []
         
-        for user in users:
+        for user in paginated_users:
             user_data.append({
                 "user_id": str(user.id),
                 "email": user.email,
@@ -232,7 +234,11 @@ class ListPendingUsersView(APIView):
                 "phone_verified": user.phone_verified,
             })
         
-        return Response(user_data, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "message": "Pending users retrieved successfully",
+                "data": user_data,
+            }, status=status.HTTP_200_OK)
 
 class UpdateJobApplicationStatusView(APIView):
     permission_classes = [permissions.IsAdminUser]
@@ -317,11 +323,14 @@ class DeleteAllUsersView(APIView):
 
 class GetAllUsersView(APIView):
     permission_classes = [permissions.IsAdminUser]
+    pagination_class = CustomPagination
+
     def get(self, request):
         users = CustomUser.objects.all()
+        paginated_users = self.pagination_class().paginate_queryset(users, request)
         user_data = []
         
-        for user in users:
+        for user in paginated_users:
             user_data.append({
                 "user_id": str(user.id),
                 "email": user.email,
@@ -333,7 +342,11 @@ class GetAllUsersView(APIView):
                 "phone_verified": user.phone_verified,
             })
         
-        return Response(user_data, status=status.HTTP_200_OK)
+        return Response({
+            "message": "Users retrieved successfully",
+            "data": user_data, 
+            "status":status.HTTP_200_OK
+            })
 
 #delete user by email endpoint 
 class DeleteUserByEmailView(APIView):
@@ -615,5 +628,4 @@ class AdminDetailView(APIView):
             {"message": f"Admin '{deleted_email}' deleted successfully."},
             status=status.HTTP_200_OK,
         )
-
 

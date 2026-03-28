@@ -24,7 +24,8 @@ from .views import (
     JobEmployerView,
     FeaturedJobsView,
     SearchJobsView,
-    TotalJobsView
+    TotalJobsView,
+    TotalJobCategoriesView,
 )
 
 from django.urls import path
@@ -56,4 +57,5 @@ urlpatterns = [
     path('featured/', FeaturedJobsView.as_view(), name='featured-jobs'),
     path('search/', SearchJobsView.as_view(), name='search-jobs'),
     path('total/', TotalJobsView.as_view(), name='total-jobs'),
+    path('categories/total/', TotalJobCategoriesView.as_view(), name='total-job-categories'),
 ]
