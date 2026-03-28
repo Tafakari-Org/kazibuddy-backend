@@ -134,3 +134,18 @@ class ListWorkerProfilesView(APIView):
 
             )
     
+#get total workesr
+class TotalWorkersView(APIView):
+    def get(self, request):
+        try:
+            total_workers = WorkerProfile.objects.count()
+            return Response({
+                "message": "Total workers retrieved successfully",
+                "data": total_workers}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return error_response(
+                message="An error occured when counting workers",
+                errors={"error":f"{str(e)}"},
+                status_code = status.HTTP_400_BAD_REQUEST
+
+            )

@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import CreateJobApplicationView,MyJobApplicationListView,JobApplicationDetailView,SpecificJobApplicationListView,AllJobApplicationListView
+from .views import CreateJobApplicationView,MyJobApplicationListView,JobApplicationDetailView,SpecificJobApplicationListView,AllJobApplicationListView,TotalApplicationsView,TotalApplicationsByJobView
 
 urlpatterns = [
    

@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from .serializers import JobApplicationSerializer
+from .serializers import JobApplicationSerializer,JobApplicationListSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from jobs.models import Job
@@ -261,23 +261,35 @@ class SpecificJobApplicationListView(APIView):
         }, status=200)
 
 class AllJobApplicationListView(APIView):
-    """
-    View to list all job applications.
-    """
     permission_classes = [IsAdminUser]
-    pagination_class = CustomPagination
-    serializer_class = JobApplicationSerializer
 
     def get(self, request, *args, **kwargs):
-        applications = JobApplication.objects.all()
-        paginator = self.pagination_class()
-        paginated_applications = paginator.paginate_queryset(applications, request)
-        serializer = self.serializer_class(paginated_applications, many=True)
-        return Response({
-            'status': 'success',
-            'data': serializer.data
-        }, status=200)
+        applications = JobApplication.objects.all()\
+            .select_related(
+                'job',
+                'job__employer',
+                'job__category',
+                'worker',
+                'worker__user',  # adjust to match your WorkerProfile -> User relation
+            )\
+            .prefetch_related(
+                'job__job_skills',
+                'job__images',
+                'job__attachments',
+            )\
+            .order_by('-applied_at')
 
+        paginator = CustomPagination()
+        page = paginator.paginate_queryset(applications, request)
+        serializer = JobApplicationListSerializer(page, many=True, context={'request': request})
+
+        return paginator.get_paginated_response({
+            'status': 'success',
+            'data': serializer.data,
+            'total': paginator.page.paginator.count
+        })
+
+    
 #get pending jobs applications
 class PendingJobApplicationListView(APIView):
     permission_classes = [IsAdminUser]

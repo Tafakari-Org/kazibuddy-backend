@@ -3,6 +3,7 @@ from .views import (
     CreateEmployerProfileView,
     RetrieveEmployerProfileView,
     UpdateEmployerProfileView,
+    TotalEmployersView
 )
 
 urlpatterns = [
