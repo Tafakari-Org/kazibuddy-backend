@@ -103,18 +103,24 @@ class AllJobsListView(APIView):
     Typically restricted to admin users.
     """
     permission_classes = [permissions.IsAdminUser]
-    
+    pagination_class = CustomPagination
+
     def get(self, request):
-        jobs = Job.objects.all().order_by('-created_at')
-        serializer = JobSerializer(jobs, many=True)
-        return Response(
-            {
-                "message": "All jobs retrieved successfully",
-                "data": serializer.data,
-                "total": jobs.count()
-            },
-            status=status.HTTP_200_OK
-        )
+        jobs = Job.objects.all()\
+            .select_related('employer', 'category')\
+            .prefetch_related('images', 'attachments')\
+            .annotate(skills_count=Count('job_skills'))\
+            .order_by('-created_at')
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(jobs, request)
+
+        serializer = JobListSerializer(page, many=True, context={'request': request})
+
+        return paginator.get_paginated_response({
+            "message": "All jobs retrieved successfully",
+            "data": serializer.data,
+        })
 
 
 class ApproveJobView(APIView):
