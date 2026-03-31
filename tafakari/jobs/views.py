@@ -135,6 +135,7 @@ class JobListView(views.APIView):
         try:
             jobs = Job.objects.filter(admin_approved=True)\
                 .select_related('employer', 'category')\
+                .prefetch_related('images', 'attachments')\
                 .annotate(skills_count=Count('job_skills'))\
                 .order_by('-created_at')
 
@@ -379,19 +380,54 @@ class DeleteJobView(views.APIView):
 
     def delete(self, request, job_id):
         try:
-            job = Job.objects.get(pk=job_id)
-            job_title = job.title
-            job.delete()
-            # Send notification for job deletion
-            send_otp_to_email(
-                user=request.user, 
-                otp_type='job_notification', 
-                action_type='deleted',
-                job_title=job_title
-            )
-            return Response({"message": "Job deleted successfully"}, status=204)
+            job = Job.objects.prefetch_related('images', 'attachments').get(pk=job_id)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
+
+        job_title = job.title
+        file_service = FileUploadService()
+
+        # ── Delete physical image files ────────────────────────────────────
+        for image in job.images.all():
+            if image.image_url:
+                try:
+                    deleted = file_service.remove(image.image_url)
+                    if not deleted:
+                        logger.warning(
+                            f"Image file not found on disk (job={job_id}): {image.image_url}"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to delete image file (job={job_id}, url={image.image_url}): {e}",
+                        exc_info=True,
+                    )
+
+        # ── Delete physical attachment files ───────────────────────────────
+        for attachment in job.attachments.all():
+            if attachment.file_url:
+                try:
+                    deleted = file_service.remove(attachment.file_url)
+                    if not deleted:
+                        logger.warning(
+                            f"Attachment file not found on disk (job={job_id}): {attachment.file_url}"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to delete attachment file (job={job_id}, url={attachment.file_url}): {e}",
+                        exc_info=True,
+                    )
+
+        # ── Delete the DB record (cascades to images & attachments rows) ───
+        job.delete()
+
+        # ── Notify ────────────────────────────────────────────────────────
+        send_otp_to_email(
+            user=request.user,
+            otp_type='job_notification',
+            action_type='deleted',
+            job_title=job_title
+        )
+        return Response({"message": "Job deleted successfully"}, status=204)
 
 class JobSkillsView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
