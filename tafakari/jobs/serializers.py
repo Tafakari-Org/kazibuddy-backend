@@ -109,14 +109,19 @@ class JobListSerializer(serializers.ModelSerializer):
     """
     Lightweight serializer for list views (pending jobs, search results, etc.)
     Avoids heavy nested serialization — use this instead of JobSerializer in list endpoints.
+    Images and attachments are prefetched on the queryset for zero N+1 overhead.
     """
     employer_name = serializers.CharField(source='employer.company_name', read_only=True)
     employer_id = serializers.IntegerField(source='employer.id', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     category_id = serializers.IntegerField(source='category.id', read_only=True)
-    
+
     # Reads from annotation in the queryset — no extra query per row
     skills_count = serializers.IntegerField(read_only=True)
+
+    # Prefetched in JobListView — no extra queries here
+    images = JobImageSerializer(many=True, read_only=True)
+    attachments = JobAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Job
@@ -126,6 +131,7 @@ class JobListSerializer(serializers.ModelSerializer):
             'urgency_level', 'budget_min', 'budget_max', 'payment_type',
             'status', 'admin_approved', 'views_count', 'applications_count',
             'skills_count', 'created_at', 'expires_at',
+            'images', 'attachments',
         ]
 
 

@@ -1,11 +1,12 @@
 from time import timezone
-from .serializers import JobSerializer, JobCategorySerializer, JobSkillSerializer, JobImageSerializer, JobAttachmentSerializer
+from .serializers import JobSerializer, JobCategorySerializer, JobSkillSerializer, JobImageSerializer, JobAttachmentSerializer,JobListSerializer
 from .search_serializers import JobSearchSerializer, JobSearchQuerySerializer
 from rest_framework import views, permissions, status
 from .models import Job, JobCategory, JobSkill, JobImage, JobAttachment
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q
+from django.db import DatabaseError
+from django.db.models import Q, Count
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 from .models import Job, JobCategory, Skill
@@ -128,26 +129,38 @@ class JobsInCategoryView(views.APIView):
 
 #job endpoints
 class JobListView(views.APIView):
-    # permission_classes = [permissions.IsAuthenticated]
-    pagination_class = CustomPagination 
-    
+    pagination_class = CustomPagination
+
     def get(self, request):
-        jobs = Job.objects.filter(admin_approved=True)
-        
-        # Create paginator instance
-        paginator = self.pagination_class()
-        
-        # Paginate the queryset
-        paginated_jobs = paginator.paginate_queryset(jobs, request)
-        
-        # Serialize the paginated data
-        serializer = JobSerializer(paginated_jobs, many=True, context={'request': request})
-        
-        # Return paginated response
-        return paginator.get_paginated_response({
-            "message": "Jobs retrieved successfully",
-            "data": serializer.data
-        })
+        try:
+            jobs = Job.objects.filter(admin_approved=True)\
+                .select_related('employer', 'category')\
+                .prefetch_related('images', 'attachments')\
+                .annotate(skills_count=Count('job_skills'))\
+                .order_by('-created_at')
+
+            paginator = self.pagination_class()
+            paginated_jobs = paginator.paginate_queryset(jobs, request)
+
+            serializer = JobListSerializer(paginated_jobs, many=True, context={'request': request})
+
+            return paginator.get_paginated_response({
+                "message": "Jobs retrieved successfully",
+                "data": serializer.data,
+            })
+
+        except DatabaseError as e:
+            logger.error(f"Database error in JobListView: {e}", exc_info=True)
+            return Response(
+                {"error": "A database error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error in JobListView: {e}", exc_info=True)
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 
@@ -367,19 +380,54 @@ class DeleteJobView(views.APIView):
 
     def delete(self, request, job_id):
         try:
-            job = Job.objects.get(pk=job_id)
-            job_title = job.title
-            job.delete()
-            # Send notification for job deletion
-            send_otp_to_email(
-                user=request.user, 
-                otp_type='job_notification', 
-                action_type='deleted',
-                job_title=job_title
-            )
-            return Response({"message": "Job deleted successfully"}, status=204)
+            job = Job.objects.prefetch_related('images', 'attachments').get(pk=job_id)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
+
+        job_title = job.title
+        file_service = FileUploadService()
+
+        # ── Delete physical image files ────────────────────────────────────
+        for image in job.images.all():
+            if image.image_url:
+                try:
+                    deleted = file_service.remove(image.image_url)
+                    if not deleted:
+                        logger.warning(
+                            f"Image file not found on disk (job={job_id}): {image.image_url}"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to delete image file (job={job_id}, url={image.image_url}): {e}",
+                        exc_info=True,
+                    )
+
+        # ── Delete physical attachment files ───────────────────────────────
+        for attachment in job.attachments.all():
+            if attachment.file_url:
+                try:
+                    deleted = file_service.remove(attachment.file_url)
+                    if not deleted:
+                        logger.warning(
+                            f"Attachment file not found on disk (job={job_id}): {attachment.file_url}"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to delete attachment file (job={job_id}, url={attachment.file_url}): {e}",
+                        exc_info=True,
+                    )
+
+        # ── Delete the DB record (cascades to images & attachments rows) ───
+        job.delete()
+
+        # ── Notify ────────────────────────────────────────────────────────
+        send_otp_to_email(
+            user=request.user,
+            otp_type='job_notification',
+            action_type='deleted',
+            job_title=job_title
+        )
+        return Response({"message": "Job deleted successfully"}, status=204)
 
 class JobSkillsView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
@@ -468,41 +516,42 @@ class ToggleFeaturedJobView(views.APIView):
 
 
 class FeaturedJobsView(views.APIView):
-    """
-    GET /jobs/featured/ - List featured jobs with pagination
-    """
     pagination_class = CustomPagination
-    
+
     def get(self, request):
         try:
-            # Query featured jobs with proper optimization
             featured_jobs = Job.objects.filter(
                 is_featured=True,
                 status='active',
                 admin_approved=True,
                 visibility='public'
             ).select_related(
-                'employer__user',  # Optimize employer data access
+                'employer',
                 'category'
-            ).order_by('-created_at')  # Show newest featured jobs first
-            
-            # Apply pagination
+            ).order_by('-created_at')
+
             paginator = self.pagination_class()
             paginated_jobs = paginator.paginate_queryset(featured_jobs, request)
-            
-            # Serialize the paginated data
+
             serializer = FeaturedJobSerializer(paginated_jobs, many=True, context={'request': request})
-            
-            # Return paginated response
+
             return paginator.get_paginated_response({
                 'message': 'Featured jobs retrieved successfully',
                 'data': serializer.data
             })
-            
+
+        except DatabaseError as e:
+            logger.error(f"Database error in FeaturedJobsView: {e}", exc_info=True)
+            return Response(
+                {"error": "A database error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         except Exception as e:
-            return Response({
-                'error': f'Failed to fetch featured jobs: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Unexpected error in FeaturedJobsView: {e}", exc_info=True)
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class JobsByEmployerView(views.APIView):
@@ -869,4 +918,18 @@ class TotalJobsView(views.APIView):
                 'error': f'Failed to get total jobs: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+#total job categories
+class TotalJobCategoriesView(views.APIView):
+    def get(self, request):
+        try:
+            total_job_categories = JobCategory.objects.count()
+            return Response({
+                'message': 'Total job categories fetched successfully',
+                "data": total_job_categories
+                },status=status.HTTP_200_OK)
 
+        except Exception as e:
+            return Response({
+                'message': 'Failed to get total job categories',
+                'error': f'Failed to get total job categories: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

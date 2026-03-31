@@ -27,3 +27,28 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             # Automatically set the worker from the request context
             validated_data['worker'] = self.context['request'].user.workerprofile
             return super().create(validated_data)
+
+
+class JobApplicationListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for listing applications — avoids heavy nested serializers"""
+    
+    # Job fields — flat, no nested JobSerializer
+    job_id = serializers.IntegerField(source='job.id', read_only=True)
+    job_title = serializers.CharField(source='job.title', read_only=True)
+    job_type = serializers.CharField(source='job.job_type', read_only=True)
+    job_budget_min = serializers.DecimalField(source='job.budget_min', max_digits=10, decimal_places=2, read_only=True)
+    job_budget_max = serializers.DecimalField(source='job.budget_max', max_digits=10, decimal_places=2, read_only=True)
+    employer_name = serializers.CharField(source='job.employer.company_name', read_only=True)
+
+    # Worker fields — flat, no nested WorkerProfileSerializer
+    worker_id = serializers.IntegerField(source='worker.id', read_only=True)
+    worker_name = serializers.CharField(source='worker.user.get_full_name', read_only=True)  # adjust as needed
+
+    class Meta:
+        model = JobApplication
+        fields = [
+            'id', 'status', 'proposed_rate', 'availability_start',
+            'cover_letter', 'applied_at', 'reviewed_at', 'responded_at',
+            'job_id', 'job_title', 'job_type', 'job_budget_min', 'job_budget_max', 'employer_name',
+            'worker_id', 'worker_name',
+        ]
