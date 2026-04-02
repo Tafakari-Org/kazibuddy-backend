@@ -289,8 +289,30 @@ class AllJobApplicationListView(APIView):
             'total': paginator.page.paginator.count
         })
 
-    
-#get pending jobs applications
+#get all rejected job applications
+class RejectedJobApplicationListView(APIView):
+    permission_classes = [IsAdminUser]
+    pagination_class = CustomPagination
+    serializer_class = JobApplicationSerializer
+
+    def get(self, request, *args, **kwargs):
+        try:
+            applications = JobApplication.objects.filter(status='rejected')
+            paginator = self.pagination_class()
+            paginated_applications = paginator.paginate_queryset(applications, request)
+            serializer = self.serializer_class(paginated_applications, many=True)
+            return Response({
+            'status': 'success',
+            'data': serializer.data
+            }, status=200)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Failed to retrieve rejected job applications.',
+                'errors': str(e)
+            }, status=500)
+
+#get all pending job applications
 class PendingJobApplicationListView(APIView):
     permission_classes = [IsAdminUser]
     pagination_class = CustomPagination
@@ -312,6 +334,30 @@ class PendingJobApplicationListView(APIView):
                 'message': 'Failed to retrieve pending job applications.',
                 'errors': str(e)
             }, status=500)
+
+#get all accepted job applications
+class AcceptedJobApplicationListView(APIView):
+    permission_classes = [IsAdminUser]
+    pagination_class = CustomPagination
+    serializer_class = JobApplicationSerializer
+
+    def get(self, request, *args, **kwargs):
+        try:
+            applications = JobApplication.objects.filter(status='accepted')
+            paginator = self.pagination_class()
+            paginated_applications = paginator.paginate_queryset(applications, request)
+            serializer = self.serializer_class(paginated_applications, many=True)
+            return Response({
+            'status': 'success',
+            'data': serializer.data
+            }, status=200)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Failed to retrieve accepted job applications.',
+                'errors': str(e)
+            }, status=500)  
+            
 
 #get total applications
 class TotalApplicationsView(APIView):
