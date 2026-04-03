@@ -790,7 +790,7 @@ class SearchJobsView(views.APIView):
                     queryset
                     .filter(search_vector=search)
                     .annotate(rank=SearchRank('search_vector', search))
-                    .order_by('-rank')
+                    .order_by('-rank')  #order by relevance
                 )
 
             # --- Skill filtering (bulk __in instead of per-skill Q loop) ---
