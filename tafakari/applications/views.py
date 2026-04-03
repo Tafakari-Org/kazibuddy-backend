@@ -42,6 +42,13 @@ class CreateJobApplicationView(APIView):
                     'message': 'Job not found.'
                 }, status=404)
 
+            # Check if the job is already assigned
+            if job.is_assigned:
+                return Response({
+                    'status': 'error',
+                    'message': 'This job has already been assigned to a worker and is no longer accepting applications.'
+                }, status=400)
+
             # Check if the worker has already applied for the job
             worker = request.user
             worker_profile = WorkerProfile.objects.filter(user=worker).first()
