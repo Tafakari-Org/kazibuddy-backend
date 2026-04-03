@@ -6,7 +6,8 @@ from .models import Job, JobCategory, JobSkill, JobImage, JobAttachment
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db import DatabaseError
-from django.db.models import Q, Count
+from django.db.models import Q, Count,Case,When,IntegerField
+from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 from .models import Job, JobCategory, Skill
@@ -749,11 +750,11 @@ class DeleteJobSkillView(views.APIView):
 
 class SearchJobsView(views.APIView):
     """
-    Comprehensive job search endpoint with full-text search, filtering, and sorting
-    GET /jobs/search/ - Search jobs with multiple criteria
+    Comprehensive job search endpoint with full-text search, filtering, and sorting.
+    GET /jobs/search/
     """
     pagination_class = CustomPagination
-    
+
     def get(self, request):
         try:
             # Validate query parameters
@@ -763,10 +764,11 @@ class SearchJobsView(views.APIView):
                     'error': 'Invalid query parameters',
                     'details': query_serializer.errors
                 }, status=status.HTTP_400_BAD_REQUEST)
-            
+
             validated_data = query_serializer.validated_data
-            
-            # Start with base queryset - only approved, active, public jobs
+
+            # Base queryset — only approved, active, public jobs
+            # .only() limits columns fetched from DB
             queryset = Job.objects.filter(
                 admin_approved=True,
                 status='active',
@@ -775,108 +777,107 @@ class SearchJobsView(views.APIView):
                 'employer__user',
                 'category'
             ).prefetch_related(
-                'job_skills__skill'
+                'job_skills__skill'         # double underscore — populates skill cache used by serializer
+            ).only(
+                'id', 'title', 'description', 'job_type', 'location_text',
+                'budget_min', 'budget_max', 'urgency_level', 'payment_type',
+                'created_at', 'status', 'visibility', 'admin_approved',
+                'employer_id', 'category_id',
             )
-            
-            # Full-text search on title and description
+
+            # --- Full-text search ---
             search_query = validated_data.get('q', '').strip()
             if search_query:
-                queryset = queryset.filter(
-                    Q(title__icontains=search_query) | 
-                    Q(description__icontains=search_query)
+                search = SearchQuery(search_query)
+                queryset = (
+                    queryset
+                    .filter(search_vector=search)
+                    .annotate(rank=SearchRank('search_vector', search))
+                    .order_by('-rank')
                 )
-            
-            # Filter by skills
+
+            # --- Skill filtering (bulk __in instead of per-skill Q loop) ---
             skills = validated_data.get('skills', [])
             if skills:
-                # Try to determine if skills are UUIDs or names
-                skill_filters = Q()
+                skill_ids, skill_names = [], []
                 for skill in skills:
-                    # Check if it looks like a UUID
                     try:
-                        from uuid import UUID
-                        UUID(skill)
-                        skill_filters |= Q(job_skills__skill__id=skill)
+                        skill_ids.append(UUID(skill))
                     except (ValueError, AttributeError):
-                        # Treat as skill name
-                        skill_filters |= Q(job_skills__skill__name__iexact=skill)
-                
+                        skill_names.append(skill)
+
+                skill_filters = Q()
+                if skill_ids:
+                    skill_filters |= Q(job_skills__skill__id__in=skill_ids)
+                if skill_names:
+                    skill_filters |= Q(job_skills__skill__name__in=skill_names)
+
                 queryset = queryset.filter(skill_filters).distinct()
-            
-            # Filter by category
+
+            # --- Category filter ---
             category = validated_data.get('category')
             if category:
                 queryset = queryset.filter(category_id=category)
-            
-            # Filter by location (case-insensitive partial match)
+
+            # --- Location filter ---
             location = validated_data.get('location', '').strip()
             if location:
                 queryset = queryset.filter(location_text__icontains=location)
-            
-            # Filter by job type
+
+            # --- Job type filter ---
             job_type = validated_data.get('job_type')
             if job_type:
                 queryset = queryset.filter(job_type=job_type)
-            
-            # Filter by urgency level
+
+            # --- Urgency level filter ---
             urgency_level = validated_data.get('urgency_level')
             if urgency_level:
                 queryset = queryset.filter(urgency_level=urgency_level)
-            
-            # Filter by payment type
+
+            # --- Payment type filter ---
             payment_type = validated_data.get('payment_type')
             if payment_type:
                 queryset = queryset.filter(payment_type=payment_type)
-            
-            # Filter by budget range
+
+            # --- Budget range filter ---
             budget_min = validated_data.get('budget_min')
             budget_max = validated_data.get('budget_max')
-            
+
             if budget_min is not None:
-                # Jobs where the minimum budget is at least the user's minimum
                 queryset = queryset.filter(
                     Q(budget_min__gte=budget_min) | Q(budget_min__isnull=True)
                 )
-            
             if budget_max is not None:
-                # Jobs where the maximum budget is at most the user's maximum
                 queryset = queryset.filter(
                     Q(budget_max__lte=budget_max) | Q(budget_max__isnull=True)
                 )
-            
-            # Sorting
+
+            # --- Sorting ---
             sort_by = validated_data.get('sort_by', 'created_at')
             order = validated_data.get('order', 'desc')
-            
-            # Map urgency levels to numeric values for sorting
+            order_prefix = '-' if order == 'desc' else ''
+
             if sort_by == 'urgency_level':
-                urgency_order = {
-                    'urgent': 4,
-                    'high': 3,
-                    'medium': 2,
-                    'low': 1
-                }
-                # For urgency, we'll sort in Python after fetching
-                # This is a limitation of Django ORM for choice fields
-                jobs_list = list(queryset)
-                jobs_list.sort(
-                    key=lambda x: urgency_order.get(x.urgency_level, 0),
-                    reverse=(order == 'desc')
+                # Case/When annotation avoids loading the full queryset into memory
+                urgency_rank = Case(
+                    When(urgency_level='urgent', then=4),
+                    When(urgency_level='high', then=3),
+                    When(urgency_level='medium', then=2),
+                    When(urgency_level='low', then=1),
+                    default=0,
+                    output_field=IntegerField()
                 )
-                queryset = jobs_list
-            else:
-                # Apply database-level sorting
-                order_prefix = '-' if order == 'desc' else ''
+                queryset = queryset.annotate(urgency_rank=urgency_rank).order_by(f'{order_prefix}urgency_rank')
+            elif not search_query:
+                # Don't override relevance ordering when a search query is active
                 queryset = queryset.order_by(f'{order_prefix}{sort_by}')
-            
-            # Apply pagination
+
+            # --- Pagination ---
             paginator = self.pagination_class()
             paginated_jobs = paginator.paginate_queryset(queryset, request)
-            
-            # Serialize the paginated data
+
             serializer = JobSearchSerializer(paginated_jobs, many=True, context={'request': request})
-            
-            # Return paginated response
+
             return paginator.get_paginated_response({
                 'message': 'Search completed successfully',
                 'search_params': {
@@ -896,7 +897,7 @@ class SearchJobsView(views.APIView):
                 },
                 'data': serializer.data
             })
-            
+
         except Exception as e:
             return Response({
                 'error': f'Search failed: {str(e)}'
