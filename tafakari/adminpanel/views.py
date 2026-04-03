@@ -222,29 +222,50 @@ class PendingJobsListView(APIView):
     
 class ListPendingUsersView(APIView):
     permission_classes = [permissions.IsAdminUser]
-    custom_pagination = CustomPagination
+    pagination_class = CustomPagination
+
     def get(self, request):
-        users = CustomUser.objects.filter(is_verified=False)
-        paginated_users = self.custom_pagination().paginate_queryset(users, request)
-        user_data = []
-        
-        for user in paginated_users:
-            user_data.append({
-                "user_id": str(user.id),
-                "email": user.email,
-                "phone_number": user.phone_number,
-                "user_type": user.user_type,
-                "full_name": user.full_name,
-                "profile_photo_url": user.profile_photo_url,
-                "email_verified": user.email_verified,
-                "phone_verified": user.phone_verified,
-            })
-        
-        return Response(
-            {
-                "message": "Pending users retrieved successfully",
-                "data": user_data,
-            }, status=status.HTTP_200_OK)
+        try:
+            users = CustomUser.objects.filter(
+                is_verified=False
+            ).only(
+                'id', 'email', 'phone_number', 'user_type',
+                'full_name', 'profile_photo_url', 'email_verified', 'phone_verified'
+            ).order_by('id')
+
+            paginator = self.pagination_class()
+            paginated_users = paginator.paginate_queryset(users, request)
+
+            user_data = [
+                {
+                    'user_id': str(user.id),
+                    'email': user.email,
+                    'phone_number': user.phone_number,
+                    'user_type': user.user_type,
+                    'full_name': user.full_name,
+                    'profile_photo_url': user.profile_photo_url,
+                    'email_verified': user.email_verified,
+                    'phone_verified': user.phone_verified,
+                }
+                for user in paginated_users
+            ]
+
+            return Response(
+                {
+                    'message': 'Pending users retrieved successfully',
+                    'data': user_data,
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {
+                    'message': 'Failed to retrieve pending users.',
+                    'errors': str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class UpdateJobApplicationStatusView(APIView):
     permission_classes = [permissions.IsAdminUser]
