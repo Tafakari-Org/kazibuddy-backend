@@ -37,6 +37,8 @@ class JobApplicationListSerializer(serializers.ModelSerializer):
     job_type = serializers.CharField(source='job.job_type', read_only=True)
     job_budget_min = serializers.DecimalField(source='job.budget_min', max_digits=10, decimal_places=2, read_only=True)
     job_budget_max = serializers.DecimalField(source='job.budget_max', max_digits=10, decimal_places=2, read_only=True)
+
+    employer_id = serializers.UUIDField(source='job.employer.id', read_only=True)
     employer_name = serializers.CharField(source='job.employer.company_name', read_only=True)
 
     # Worker fields — flat, no nested WorkerProfileSerializer
@@ -48,7 +50,7 @@ class JobApplicationListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'status', 'proposed_rate', 'availability_start',
             'cover_letter', 'applied_at', 'reviewed_at', 'responded_at',
-            'job_id', 'job_title', 'job_type', 'job_budget_min', 'job_budget_max', 'employer_name',
+            'job_id', 'job_title', 'job_type', 'job_budget_min', 'job_budget_max', 'employer_id','employer_name',
             'worker_id', 'worker_name',
         ]
 

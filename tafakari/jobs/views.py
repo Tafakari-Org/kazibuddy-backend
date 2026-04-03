@@ -134,7 +134,7 @@ class JobListView(views.APIView):
 
     def get(self, request):
         try:
-            jobs = Job.objects.filter(admin_approved=True)\
+            jobs = Job.objects.filter(admin_approved=True,is_assigned=False)\
                 .select_related('employer', 'category')\
                 .prefetch_related('images', 'attachments')\
                 .annotate(skills_count=Count('job_skills'))\
@@ -523,6 +523,7 @@ class FeaturedJobsView(views.APIView):
         try:
             featured_jobs = Job.objects.filter(
                 is_featured=True,
+                is_assigned=False,
                 status='active',
                 admin_approved=True,
                 visibility='public'
@@ -565,7 +566,7 @@ class JobsByEmployerView(views.APIView):
                 return Response({"error": "Employer ID is required"}, status=400)
             try:
                 paginator = self.pagination_class()
-                jobs = Job.objects.filter(employer=employer_id)
+                jobs = Job.objects.filter(employer=employer_id, is_assigned=False)
                 paginated_jobs = paginator.paginate_queryset(jobs, request)
                 serializer = JobSerializer(paginated_jobs, many=True)
                 return Response(
@@ -586,7 +587,7 @@ class ListJobsByCategoryView(views.APIView):
         try:
             category = JobCategory.objects.get(pk=category_id)
             paginator = self.pagination_class()
-            jobs = category.jobs.all()
+            jobs = category.jobs.filter(is_assigned=False)
             paginated_jobs = paginator.paginate_queryset(jobs, request)
             serializer = JobSerializer(paginated_jobs, many=True, context={'request': request})
             return Response(
@@ -630,7 +631,7 @@ class ListJobsByFilterView(views.APIView):
             if value:
                 filters[key] = value
         paginator = self.paginator_class()
-        jobs = Job.objects.filter(**filters)
+        jobs = Job.objects.filter(**filters, is_assigned=False,admin_approved=True)
         paginated_jobs = paginator.paginate_queryset(jobs, request)
         serializer = JobSerializer(paginated_jobs, many=True, context={'request': request})
         return Response(
@@ -771,6 +772,7 @@ class SearchJobsView(views.APIView):
             # .only() limits columns fetched from DB
             queryset = Job.objects.filter(
                 admin_approved=True,
+                is_assigned=False,
                 status='active',
                 visibility='public'
             ).select_related(
