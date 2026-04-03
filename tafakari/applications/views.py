@@ -320,7 +320,10 @@ class PendingJobApplicationListView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            applications = JobApplication.objects.filter(status='pending')
+            applications = JobApplication.objects.filter(status='pending')\
+                .select_related('job','worker')\
+                .prefetch_related('job__job_skills','job__category', 'job__images','job__attachments', 'worker__user')\
+                .order_by('-applied_at')
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
             serializer = self.serializer_class(paginated_applications, many=True)
@@ -343,7 +346,10 @@ class AcceptedJobApplicationListView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            applications = JobApplication.objects.filter(status='accepted')
+            applications = JobApplication.objects.filter(status='accepted')\
+                .select_related('job','worker')\
+                .prefetch_related('job__job_skills','job__category', 'job__images', 'job__attachments', 'worker__user')\
+                .order_by('-applied_at')
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
             serializer = self.serializer_class(paginated_applications, many=True)
