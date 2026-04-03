@@ -778,11 +778,6 @@ class SearchJobsView(views.APIView):
                 'category'
             ).prefetch_related(
                 'job_skills__skill'         # double underscore — populates skill cache used by serializer
-            ).only(
-                'id', 'title', 'description', 'job_type', 'location_text',
-                'budget_min', 'budget_max', 'urgency_level', 'payment_type',
-                'created_at', 'status', 'visibility', 'admin_approved',
-                'employer_id', 'category_id',
             )
 
             # --- Full-text search ---
