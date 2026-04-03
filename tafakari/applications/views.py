@@ -5,13 +5,12 @@ from rest_framework.response import Response
 from jobs.models import Job
 from .models import JobApplication
 from workers.models import WorkerProfile
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,IsAdminUser
 from rest_framework import status
 from .utils import check_if_user_isOwner
 from utils.custom_pagination import CustomPagination
 from django.db import transaction
 from utils.views import send_otp_to_email
-from rest_framework.permissions import IsAdminUser
 
 
 # Create your views here.
@@ -405,7 +404,7 @@ class TotalApplicationsByJobView(APIView):
 
 #list worker profiles for a specific job
 class JobApplicationWorkerView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
     pagination_class = CustomPagination
     serializer_class = JobApplicationWorkerSerializer
 
@@ -424,10 +423,11 @@ class JobApplicationWorkerView(APIView):
             paginated_applications = paginator.paginate_queryset(applications, request)
             serializer = self.serializer_class(paginated_applications, many=True)
 
-            return paginator.get_paginated_response({
+            return Response({
                 'status': 'success',
+                'message': 'Job applicants retrieved successfully.',
                 'data': serializer.data
-            })
+            }, status=200)
 
         except Exception as e:
             return Response({

@@ -635,49 +635,49 @@ class AdminDetailView(APIView):
             status=status.HTTP_200_OK,
         )
 
-class ListJobApplicantsView(APIView):
-    """
-    GET /api/adminpanel/jobs/<uuid:job_id>/applicants/
+# class ListJobApplicantsView(APIView):
+#     """
+#     GET /api/adminpanel/jobs/<uuid:job_id>/applicants/
 
-    List all applicants for a specific job.
-    Supports optional query params:
-      - ?status=pending|shortlisted|accepted|rejected|withdrawn
-      - Pagination via standard page/page_size params
+#     List all applicants for a specific job.
+#     Supports optional query params:
+#       - ?status=pending|shortlisted|accepted|rejected|withdrawn
+#       - Pagination via standard page/page_size params
 
-    Only admin users can access this endpoint.
-    """
-    permission_classes = [permissions.IsAdminUser]
-    pagination_class = CustomPagination
+#     Only admin users can access this endpoint.
+#     """
+#     permission_classes = [permissions.IsAdminUser]
+#     pagination_class = CustomPagination
 
-    def get(self, request, job_id):
-        job = get_object_or_404(Job, id=job_id)
+#     def get(self, request, job_id):
+#         job = get_object_or_404(Job, id=job_id)
 
-        applications = JobApplication.objects.filter(job=job).select_related(
-            'job', 'job__employer', 'job__category', 'worker', 'worker__user'
-        ).prefetch_related(
-            'job__job_skills', 'job__images', 'job__attachments'
-        ).order_by('-applied_at')
+#         applications = JobApplication.objects.filter(job=job).select_related(
+#             'job', 'job__employer', 'job__category', 'worker', 'worker__user'
+#         ).prefetch_related(
+#             'job__job_skills', 'job__images', 'job__attachments'
+#         ).order_by('-applied_at')
 
-        status_filter = request.query_params.get('status')
-        if status_filter:
-            valid_statuses = [c[0] for c in JobApplication.STATUS_CHOICES]
-            if status_filter not in valid_statuses:
-                return Response(
-                    {"status": "error", "message": f"Invalid status filter. Valid values: {valid_statuses}"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            applications = applications.filter(status=status_filter)
+#         status_filter = request.query_params.get('status')
+#         if status_filter:
+#             valid_statuses = [c[0] for c in JobApplication.STATUS_CHOICES]
+#             if status_filter not in valid_statuses:
+#                 return Response(
+#                     {"status": "error", "message": f"Invalid status filter. Valid values: {valid_statuses}"},
+#                     status=status.HTTP_400_BAD_REQUEST,
+#                 )
+#             applications = applications.filter(status=status_filter)
 
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(applications, request)
+#         paginator = self.pagination_class()
+#         page = paginator.paginate_queryset(applications, request)
         
-        # We can use JobApplicationListSerializer which is imported at the top of the file.
-        serializer = JobApplicationListSerializer(page, many=True, context={'request': request})
+#         # We can use JobApplicationListSerializer which is imported at the top of the file.
+#         serializer = JobApplicationListSerializer(page, many=True, context={'request': request})
 
-        return paginator.get_paginated_response({
-            "status": "success",
-            "message": f"Applicants for job '{job.title}' retrieved successfully.",
-            "data": serializer.data,
-        })
+#         return paginator.get_paginated_response({
+#             "status": "success",
+#             "message": f"Applicants for job '{job.title}' retrieved successfully.",
+#             "data": serializer.data,
+#         })
 
 
