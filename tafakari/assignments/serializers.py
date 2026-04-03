@@ -69,30 +69,61 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, data):
-        # Prevent duplicate active assignments for same job
-        existing = Assignment.objects.filter(
-            job=data['job'],
+        job = data.get('job')
+        worker = data.get('worker')
+        employer = data.get('employer')
+        application = data.get('application')
+
+        # 1. Verify worker profile exists
+        from workers.models import WorkerProfile
+        if not WorkerProfile.objects.filter(id=worker.id).exists():
+            raise serializers.ValidationError({
+                'worker': 'Worker profile does not exist.'
+            })
+
+        # 2. Verify application exists and belongs to the given worker
+        if application:
+            from applications.models import JobApplication
+            try:
+                app = JobApplication.objects.get(id=application.id)
+            except JobApplication.DoesNotExist:
+                raise serializers.ValidationError({
+                    'application': 'Application does not exist.'
+                })
+
+            if app.worker != worker:
+                raise serializers.ValidationError({
+                    'application': 'This application does not belong to the given worker profile.'
+                })
+
+        # 3. Verify employer exists and the job belongs to that employer
+        from employers.models import EmployerProfile
+        if not EmployerProfile.objects.filter(id=employer.id).exists():
+            raise serializers.ValidationError({
+                'employer': 'Employer profile does not exist.'
+            })
+
+        if job.employer != employer:
+            raise serializers.ValidationError({
+                'employer': 'This job does not belong to the given employer.'
+            })
+
+        # 4. Prevent duplicate active assignments for the same job
+        if Assignment.objects.filter(
+            job=job,
             status__in=['assigned', 'in_progress', 'paused']
-        ).exists()
-        if existing:
+        ).exists():
             raise serializers.ValidationError({
                 'job': 'This job already has an active assignment.'
             })
 
-        # Validate worker belongs to correct profile
-        if data['worker'].user != data.get('worker').user:
-            raise serializers.ValidationError({
-                'worker': 'Invalid worker profile.'
-            })
-
-        # Validate date range
+        # 5. Validate date range
         if data.get('end_date') and data['end_date'] < data['start_date']:
             raise serializers.ValidationError({
                 'end_date': 'End date cannot be before start date.'
             })
 
         return data
-
 
 class UpdateAssignmentStatusSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=Assignment.STATUS_CHOICES)
