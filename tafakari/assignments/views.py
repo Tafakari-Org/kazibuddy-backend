@@ -67,16 +67,18 @@ class ListCreateAssignmentView(APIView):
         try:
             serializer = CreateAssignmentSerializer(data=request.data)
             if not serializer.is_valid():
+                # Extract the first readable error message
+                errors = serializer.errors
+                first_error = next(iter(errors.values()))[0]
+
                 return Response({
                     'status': 'error',
-                    'message': 'Invalid data.',
-                    'errors': serializer.errors,
+                    'message': str(first_error),
+                    'errors': errors,
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             with transaction.atomic():
                 assignment = serializer.save()
-
-                # Mark job as assigned
                 assignment.job.is_assigned = True
                 assignment.job.save(update_fields=['is_assigned'])
 
@@ -92,7 +94,6 @@ class ListCreateAssignmentView(APIView):
                 'message': 'Failed to create assignment.',
                 'errors': str(e),
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class AssignmentDetailView(APIView):
     """
