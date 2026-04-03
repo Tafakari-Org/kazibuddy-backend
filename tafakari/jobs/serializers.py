@@ -165,3 +165,6 @@ class FeaturedJobSerializer(serializers.ModelSerializer):
             'job_type': {'required': False},
             'payment_type': {'required': False},
         }
+
+
+    

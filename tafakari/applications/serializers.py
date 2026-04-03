@@ -31,7 +31,6 @@ class JobApplicationSerializer(serializers.ModelSerializer):
 
 class JobApplicationListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for listing applications — avoids heavy nested serializers"""
-    
     # Job fields — flat, no nested JobSerializer
     job_id = serializers.IntegerField(source='job.id', read_only=True)
     job_title = serializers.CharField(source='job.title', read_only=True)
