@@ -1,17 +1,16 @@
 from django.shortcuts import render
-from .serializers import JobApplicationSerializer,JobApplicationListSerializer
+from .serializers import JobApplicationSerializer,JobApplicationListSerializer,JobApplicationWorkerSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from jobs.models import Job
 from .models import JobApplication
 from workers.models import WorkerProfile
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,IsAdminUser
 from rest_framework import status
 from .utils import check_if_user_isOwner
 from utils.custom_pagination import CustomPagination
 from django.db import transaction
 from utils.views import send_otp_to_email
-from rest_framework.permissions import IsAdminUser
 
 
 # Create your views here.
@@ -400,5 +399,39 @@ class TotalApplicationsByJobView(APIView):
             return Response({
                 'status': 'error',
                 'message': 'Failed to retrieve total applications.',
+                'errors': str(e)
+            }, status=500)
+
+#list worker profiles for a specific job
+class JobApplicationWorkerView(APIView):
+    permission_classes = [IsAdminUser]
+    pagination_class = CustomPagination
+    serializer_class = JobApplicationWorkerSerializer
+
+    def get(self, request, *args, **kwargs):
+        job_id = kwargs.get('job_id')
+
+        if not job_id:
+            return Response({
+                'status': 'error',
+                'message': 'Job ID is required.'
+            }, status=400)
+
+        try:
+            applications = JobApplication.objects.filter(job_id=job_id).select_related('worker').prefetch_related('worker__user')
+            paginator = self.pagination_class()
+            paginated_applications = paginator.paginate_queryset(applications, request)
+            serializer = self.serializer_class(paginated_applications, many=True)
+
+            return Response({
+                'status': 'success',
+                'message': 'Job applicants retrieved successfully.',
+                'data': serializer.data
+            }, status=200)
+
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Failed to retrieve job applications.',
                 'errors': str(e)
             }, status=500)

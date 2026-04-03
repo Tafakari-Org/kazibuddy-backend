@@ -16,7 +16,7 @@ from .views import (
     CreateSuperAdminView,
     AdminListView,
     AdminDetailView,
-    ListJobApplicantsView,
+    # ListJobApplicantsView,
 )
 
 urlpatterns = [
@@ -28,7 +28,7 @@ urlpatterns = [
     path('jobs/<uuid:job_id>/approve/', ApproveJobView.as_view(), name='approve-job'),
     path('users/pending/', ListPendingUsersView.as_view(), name='list-pending-users'),
     path('applications/<uuid:application_id>/status/', UpdateJobApplicationStatusView.as_view(), name='update-application-status'),
-    path('jobs/<uuid:job_id>/applicants/', ListJobApplicantsView.as_view(), name='list-job-applicants'),
+    # path('jobs/<uuid:job_id>/applicants/', ListJobApplicantsView.as_view(), name='list-job-applicants'),
     path('delete-users/', DeleteAllUsersView.as_view(), name='delete_all_users'),
     path('all-users/', GetAllUsersView.as_view(), name='get_all_users'),
     path('delete-user/<str:email>/', DeleteUserByEmailView.as_view(), name='delete_user_by_email'),
