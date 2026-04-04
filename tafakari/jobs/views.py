@@ -936,6 +936,7 @@ class TotalJobCategoriesView(views.APIView):
 #list jobs with applications
 class ListJobsWithApplicationsView(views.APIView):
     permission_classes = [IsAdminUser]
+    pagination_class = CustomPagination
 
     def get(self, request):
         try:
@@ -958,8 +959,10 @@ class ListJobsWithApplicationsView(views.APIView):
                 )
                 .order_by('-created_at')
             )
-
-            serializer = JobListSerializer(jobs, many=True)
+            #pagination
+            paginator = self.pagination_class()
+            paginated_jobs = paginator.paginate_queryset(jobs, request)
+            serializer = JobListSerializer(paginated_jobs, many=True)
 
             return Response(
                 {
