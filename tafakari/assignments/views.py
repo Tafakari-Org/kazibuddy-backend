@@ -15,6 +15,7 @@ from .serializers import (
     UpdateAssignmentMilestoneSerializer,
 )
 from utils.custom_pagination import CustomPagination
+from utils.views import send_otp_to_email
 
 
 #Assignments
@@ -67,10 +68,8 @@ class ListCreateAssignmentView(APIView):
         try:
             serializer = CreateAssignmentSerializer(data=request.data)
             if not serializer.is_valid():
-                # Extract the first readable error message
                 errors = serializer.errors
                 first_error = next(iter(errors.values()))[0]
-
                 return Response({
                     'status': 'error',
                     'message': str(first_error),
@@ -81,6 +80,30 @@ class ListCreateAssignmentView(APIView):
                 assignment = serializer.save()
                 assignment.job.is_assigned = True
                 assignment.job.save(update_fields=['is_assigned'])
+
+            # Notify worker
+            send_otp_to_email(
+                user=assignment.worker.user,
+                otp_type='assignment_notification',
+                action_type='assignment_created',
+                job_title=assignment.job.title,
+                employer_name=assignment.employer.user.full_name,
+                start_date=str(assignment.start_date),
+                agreed_rate=str(assignment.agreed_rate),
+                payment_type=assignment.payment_type,
+            )
+
+            # Notify employer
+            send_otp_to_email(
+                user=assignment.employer.user,
+                otp_type='assignment_notification',
+                action_type='assignment_created',
+                job_title=assignment.job.title,
+                worker_name=assignment.worker.user.full_name,
+                start_date=str(assignment.start_date),
+                agreed_rate=str(assignment.agreed_rate),
+                payment_type=assignment.payment_type,
+            )
 
             return Response({
                 'status': 'success',
@@ -94,6 +117,7 @@ class ListCreateAssignmentView(APIView):
                 'message': 'Failed to create assignment.',
                 'errors': str(e),
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class AssignmentDetailView(APIView):
     """
