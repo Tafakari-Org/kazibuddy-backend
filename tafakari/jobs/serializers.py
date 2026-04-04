@@ -112,9 +112,9 @@ class JobListSerializer(serializers.ModelSerializer):
     Images and attachments are prefetched on the queryset for zero N+1 overhead.
     """
     employer_name = serializers.CharField(source='employer.company_name', read_only=True)
-    employer_id = serializers.IntegerField(source='employer.id', read_only=True)
+    employer_id = serializers.UUIDField(source='employer.id', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
-    category_id = serializers.IntegerField(source='category.id', read_only=True)
+    category_id = serializers.UUIDField(source='category.id', read_only=True)
 
     # Reads from annotation in the queryset — no extra query per row
     skills_count = serializers.IntegerField(read_only=True)

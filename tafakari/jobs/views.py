@@ -3,10 +3,11 @@ from .serializers import JobSerializer, JobCategorySerializer, JobSkillSerialize
 from .search_serializers import JobSearchSerializer, JobSearchQuerySerializer
 from rest_framework import views, permissions, status
 from .models import Job, JobCategory, JobSkill, JobImage, JobAttachment
+from applications.models import JobApplication
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,IsAdminUser
 from django.db import DatabaseError
-from django.db.models import Q, Count,Case,When,IntegerField
+from django.db.models import Q, Count,Case,When,IntegerField,Prefetch
 from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
@@ -931,3 +932,49 @@ class TotalJobCategoriesView(views.APIView):
                 'message': 'Failed to get total job categories',
                 'error': f'Failed to get total job categories: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+#list jobs with applications
+class ListJobsWithApplicationsView(views.APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        try:
+            jobs = (
+                Job.objects
+                .annotate(
+                    total_applications=Count('jobapplication', distinct=True),
+                    skills_count=Count('job_skills', distinct=True),  # required by JobListSerializer
+                )
+                .filter(total_applications__gt=0)
+                .select_related('employer', 'category')       # flattens FK lookups into one query
+                .prefetch_related('images', 'attachments')    # required by JobListSerializer
+                .only(                                        # fetch only columns the serializer uses
+                    'id', 'title', 'description', 'location_text', 'job_type',
+                    'urgency_level', 'budget_min', 'budget_max', 'payment_type',
+                    'status', 'admin_approved', 'views_count', 'applications_count',
+                    'created_at', 'expires_at',
+                    'employer__id', 'employer__company_name',
+                    'category__id', 'category__name',
+                )
+                .order_by('-created_at')
+            )
+
+            serializer = JobListSerializer(jobs, many=True)
+
+            return Response(
+                {
+                    "message": "Jobs with applications fetched successfully",
+                    "count": jobs.count(),
+                    "data": serializer.data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            return Response(
+                {
+                    "message": "Failed to fetch jobs with applications",
+                    "error": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
