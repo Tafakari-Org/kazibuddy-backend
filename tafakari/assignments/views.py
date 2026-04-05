@@ -79,7 +79,9 @@ class ListCreateAssignmentView(APIView):
             with transaction.atomic():
                 assignment = serializer.save()
                 assignment.job.is_assigned = True
-                assignment.job.save(update_fields=['is_assigned'])
+                assignment.job.status = 'active'
+                # assignment.job.applications_count = assignment.job.applications_count - 1
+                assignment.job.save(update_fields=['is_assigned', 'status', 'applications_count'])
 
             # Notify worker
             send_otp_to_email(
