@@ -63,7 +63,7 @@ class JobSerializer(serializers.ModelSerializer):
             'location_text', 'job_type', 'urgency_level', 'budget_min',
             'budget_max', 'payment_type', 'start_date', 'end_date',
             'estimated_hours', 'max_applicants', 'status', 'visibility',
-            'admin_approved', 'views_count', 'applications_count',
+            'admin_approved', 'is_assigned', 'views_count', 'applications_count',
             'created_at', 'updated_at', 'expires_at', 'filled_at',
             'job_skills', 'images', 'attachments'
         ]
@@ -129,7 +129,7 @@ class JobListSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'employer_id', 'employer_name',
             'category_id', 'category_name', 'location_text', 'job_type',
             'urgency_level', 'budget_min', 'budget_max', 'payment_type',
-            'status', 'admin_approved', 'views_count', 'applications_count',
+            'status', 'admin_approved', 'is_assigned', 'views_count', 'applications_count',
             'skills_count', 'created_at', 'expires_at',
             'images', 'attachments',
         ]
