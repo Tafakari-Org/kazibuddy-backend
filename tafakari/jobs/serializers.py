@@ -93,7 +93,7 @@ class JobSerializer(serializers.ModelSerializer):
         return instance
 
     def _create_job_skills(self, job, skills_data):
-        # ✅ Use bulk_create instead of creating one by one
+        # Use bulk_create instead of creating one by one
         JobSkill.objects.bulk_create([
             JobSkill(
                 job=job,
