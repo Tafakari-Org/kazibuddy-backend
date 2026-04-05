@@ -145,6 +145,7 @@ class ApproveJobView(APIView):
         
         # Approve the job
         job.admin_approved = True
+        job.status = 'active'
         job.save()
         
         # Notify employer of job approval
