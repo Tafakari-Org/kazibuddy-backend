@@ -137,7 +137,7 @@ class LoginView(APIView):
             tokens = get_tokens_for_user(user)
             user_type = get_userType_fromToken(tokens['access'])
             # No OTP for login, just a notification
-            send_otp_to_email(user, otp_type='login')
+            # send_otp_to_email(user, otp_type='login')
             logger.info(f"User logged in successfully: {user.email}")
             return Response({
                 "message": "Login successful",
