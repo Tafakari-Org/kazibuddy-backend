@@ -231,7 +231,7 @@ class ListPendingUsersView(APIView):
             ).only(
                 'id', 'email', 'phone_number', 'user_type',
                 'full_name', 'profile_photo_url', 'email_verified', 'phone_verified'
-            ).order_by('id')
+            ).order_by('-created_at')
 
             paginator = self.pagination_class()
             paginated_users = paginator.paginate_queryset(users, request)

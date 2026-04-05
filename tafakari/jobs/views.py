@@ -774,8 +774,6 @@ class SearchJobsView(views.APIView):
             queryset = Job.objects.filter(
                 admin_approved=True,
                 is_assigned=False,
-                status='active',
-                visibility='public'
             ).select_related(
                 'employer__user',
                 'category'
