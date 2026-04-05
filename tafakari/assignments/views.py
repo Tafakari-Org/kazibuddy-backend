@@ -83,6 +83,18 @@ class ListCreateAssignmentView(APIView):
                 # assignment.job.applications_count = assignment.job.applications_count - 1
                 assignment.job.save(update_fields=['is_assigned', 'status', 'applications_count'])
 
+            #set application status to accepted
+            try:
+                assignment.application.status = 'accepted'
+                assignment.application.save(update_fields=['status'])
+            except Exception as e:
+                return Response({
+                    'status': 'error',
+                    'message': 'Failed to update application status.',
+                    'errors': str(e),
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
             # Notify worker
             send_otp_to_email(
                 user=assignment.worker.user,
