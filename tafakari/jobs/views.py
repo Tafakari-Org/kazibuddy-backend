@@ -187,7 +187,7 @@ class JobDetailView(views.APIView):
 
 class CreateJobView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
-
+ 
     def post(self, request):
         # ── Validate category ──────────────────────────────────────────────
         category = None
@@ -195,241 +195,312 @@ class CreateJobView(views.APIView):
             try:
                 category = JobCategory.objects.get(pk=request.data['category'])
             except JobCategory.DoesNotExist:
-                return Response({"error": "Category not found"}, status=404)
-
+                return Response({"error": "Category not found"}, status=status.HTTP_404_NOT_FOUND)
+ 
         # ── Validate employer profile ──────────────────────────────────────
         try:
             employer_profile = EmployerProfile.objects.get(user=request.user)
         except EmployerProfile.DoesNotExist:
-            return Response({"error": "Employer profile not found"}, status=404)
-
+            return Response({"error": "Employer profile not found"}, status=status.HTTP_404_NOT_FOUND)
+ 
+        # ── Validate payload before touching the DB ────────────────────────
         serializer = JobSerializer(data=request.data, context={'request': request})
         if not serializer.is_valid():
-            return Response(serializer.errors, status=400)
-
-        job = serializer.save(employer=employer_profile, category=category)
-        file_service = FileUploadService()
-
-        # ── Optional: cover image (is_cover=True) ──────────────────────────
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+ 
+        # ── Pre-flight file checks (before any DB writes) ──────────────────
         cover_file = request.FILES.get('cover_image')
         extra_images = request.FILES.getlist('images')
+        attachment_files = request.FILES.getlist('attachments')
         total_images = (1 if cover_file else 0) + len(extra_images)
-
+ 
         if total_images > MAX_IMAGES_PER_JOB:
-            job.delete()
             return Response(
                 {"error": f"A job may have at most {MAX_IMAGES_PER_JOB} images total "
-                          f"(cover_image + images). You provided {total_images}."},
-                status=400
+                           f"(cover_image + images). You provided {total_images}."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-
-        if cover_file:
-            try:
-                url = file_service.upload(cover_file, subfolder='images')
-                JobImage.objects.create(job=job, image_url=url, file_name=cover_file.name, is_cover=True)
-            except ValueError as e:
-                job.delete()
-                return Response({"error": str(e)}, status=400)
-
-        # ── Optional: extra images (is_cover=False) ────────────────────────
-        for img in extra_images:
-            try:
-                url = file_service.upload(img, subfolder='images')
-                JobImage.objects.create(job=job, image_url=url, file_name=img.name, is_cover=False)
-            except ValueError as e:
-                logger.warning(f"Image skipped ({img.name}): {e}")
-
-        # ── Optional: attachments ──────────────────────────────────────────
-        attachment_files = request.FILES.getlist('attachments')
-        slots_available = MAX_ATTACHMENTS_PER_JOB - job.attachments.count()
-
-        if len(attachment_files) > slots_available:
-            job.delete()
+ 
+        if len(attachment_files) > MAX_ATTACHMENTS_PER_JOB:
             return Response(
                 {"error": f"A job may have at most {MAX_ATTACHMENTS_PER_JOB} attachments. "
-                          f"You tried to upload {len(attachment_files)} but only {slots_available} slot(s) remain."},
-                status=400
+                           f"You tried to upload {len(attachment_files)}."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-
-        for f in attachment_files:
-            try:
-                url = file_service.upload(f, subfolder='documents')
-                mime_type, _ = mimetypes.guess_type(f.name)
-                JobAttachment.objects.create(job=job, file_url=url, file_name=f.name, file_size=f.size, file_type=mime_type)
-            except ValueError as e:
-                logger.warning(f"Attachment skipped ({f.name}): {e}")
-
+ 
+        # ── Atomic block: DB writes + file uploads together ────────────────
+        # transaction.atomic() rolls back ALL DB writes if we raise inside.
+        # Files live outside the DB, so we track every uploaded URL and clean
+        # them up manually before re-raising on any failure.
+        uploaded_urls = []
+        file_service = FileUploadService()
+ 
+        try:
+            with transaction.atomic():
+                job = serializer.save(employer=employer_profile, category=category)
+ 
+                # Cover image
+                if cover_file:
+                    try:
+                        url = file_service.upload(cover_file, subfolder='images')
+                        uploaded_urls.append(url)
+                        JobImage.objects.create(
+                            job=job, image_url=url,
+                            file_name=cover_file.name, is_cover=True,
+                        )
+                    except ValueError as e:
+                        raise ValueError(str(e))
+ 
+                # Extra images
+                for img in extra_images:
+                    try:
+                        url = file_service.upload(img, subfolder='images')
+                        uploaded_urls.append(url)
+                        JobImage.objects.create(
+                            job=job, image_url=url,
+                            file_name=img.name, is_cover=False,
+                        )
+                    except ValueError as e:
+                        raise ValueError(f"Image upload failed ({img.name}): {e}")
+ 
+                # Attachments
+                for f in attachment_files:
+                    try:
+                        url = file_service.upload(f, subfolder='documents')
+                        uploaded_urls.append(url)
+                        mime_type, _ = mimetypes.guess_type(f.name)
+                        JobAttachment.objects.create(
+                            job=job, file_url=url, file_name=f.name,
+                            file_size=f.size, file_type=mime_type,
+                        )
+                    except ValueError as e:
+                        raise ValueError(f"Attachment upload failed ({f.name}): {e}")
+ 
+        except ValueError as e:
+            # Clean up any files already written to storage before DB rolls back
+            self._rollback_uploads(file_service, uploaded_urls)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+ 
+        except Exception as e:
+            self._rollback_uploads(file_service, uploaded_urls)
+            logger.error(f"Unexpected error in CreateJobView: {e}", exc_info=True)
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+ 
         # ── Notify ────────────────────────────────────────────────────────
         send_otp_to_email(
             user=request.user,
             otp_type='job_notification',
             action_type='created',
             job_title=job.title,
-            job_status=job.get_status_display()
+            job_status=job.get_status_display(),
         )
+ 
         return Response(
-            {"message": "Job created successfully", "data": JobSerializer(job, context={'request': request}).data},
-            status=201
+            {"message": "Job created successfully",
+             "data": JobSerializer(job, context={'request': request}).data},
+            status=status.HTTP_201_CREATED,
         )
-
-
+ 
+    # ── Helper ─────────────────────────────────────────────────────────────
+    @staticmethod
+    def _rollback_uploads(file_service, urls):
+        """Best-effort removal of already-uploaded files on failure."""
+        for url in urls:
+            try:
+                file_service.remove(url)
+            except Exception as ex:
+                logger.warning(f"Could not remove file during rollback ({url}): {ex}")
+ 
+ 
 class UpdateJobView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
-
+ 
     def put(self, request, job_id):
         # ── Fetch & authorize ──────────────────────────────────────────────
         try:
             job = Job.objects.get(pk=job_id)
         except Job.DoesNotExist:
-            return Response({"error": "Job not found"}, status=404)
-
-        # Bug 1 fixed: ownership check
+            return Response({"error": "Job not found"}, status=status.HTTP_404_NOT_FOUND)
+ 
         if job.employer != request.user.employerprofile:
-            return Response({"error": "You do not own this job"}, status=403)
-
-        # Bug 2 fixed: partial=True so only sent fields are required
+            return Response({"error": "You do not own this job"}, status=status.HTTP_403_FORBIDDEN)
+ 
         serializer = JobSerializer(
             job, data=request.data, context={"request": request}, partial=True
         )
         if not serializer.is_valid():
-            return Response(serializer.errors, status=400)
-
-        file_service = FileUploadService()
-
-        with transaction.atomic():
-            updated_job = serializer.save()
-
-            # ── Optional: replace cover image (is_cover=True) ──────────────
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+ 
+        # ── Pre-flight slot checks ─────────────────────────────────────────
+        extra_images = request.FILES.getlist('images')
+        attachment_files = request.FILES.getlist("attachments")
+ 
+        if extra_images:
+            existing_image_count = job.images.count()
             cover_file = request.FILES.get('cover_image')
-            if cover_file:
-                try:
-                    new_url = file_service.upload(cover_file, subfolder='images')
-                except ValueError as e:
-                    return Response({"error": str(e)}, status=400)
-
-                existing_cover = updated_job.images.filter(is_cover=True).first()
-                if existing_cover:
-                    file_service.remove(existing_cover.image_url)
-                    existing_cover.delete()
-
-                JobImage.objects.create(
-                    job=updated_job,
-                    image_url=new_url,
-                    file_name=cover_file.name,
-                    is_cover=True,
+            # cover replaces existing cover, so it doesn't consume an extra slot
+            slots_available = MAX_IMAGES_PER_JOB - existing_image_count
+            if len(extra_images) > slots_available:
+                return Response(
+                    {"error": f"Only {slots_available} image slot(s) remain "
+                               f"(max {MAX_IMAGES_PER_JOB} total including cover)."},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-
-            # ── Optional: add extra images (is_cover=False) ────────────────
-            extra_images = request.FILES.getlist('images')
-            if extra_images:
-                existing_image_count = updated_job.images.count()
-                slots_available = MAX_IMAGES_PER_JOB - existing_image_count
-                if len(extra_images) > slots_available:
-                    return Response(
-                        {"error": f"Only {slots_available} image slot(s) remain (max {MAX_IMAGES_PER_JOB} total including cover)."},
-                        status=400
+ 
+        if attachment_files:
+            existing_count = job.attachments.count()
+            slots_available = MAX_ATTACHMENTS_PER_JOB - existing_count
+            if len(attachment_files) > slots_available:
+                return Response(
+                    {"error": f"Only {slots_available} attachment slot(s) remain "
+                               f"(max {MAX_ATTACHMENTS_PER_JOB})."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+ 
+        # ── Atomic block ───────────────────────────────────────────────────
+        uploaded_urls = []
+        replaced_cover_url = None
+        file_service = FileUploadService()
+ 
+        try:
+            with transaction.atomic():
+                updated_job = serializer.save()
+ 
+                # Replace cover image
+                cover_file = request.FILES.get('cover_image')
+                if cover_file:
+                    url = file_service.upload(cover_file, subfolder='images')
+                    uploaded_urls.append(url)
+ 
+                    existing_cover = updated_job.images.filter(is_cover=True).first()
+                    if existing_cover:
+                        replaced_cover_url = existing_cover.image_url
+                        existing_cover.delete()
+ 
+                    JobImage.objects.create(
+                        job=updated_job, image_url=url,
+                        file_name=cover_file.name, is_cover=True,
                     )
+ 
+                # Add extra images
                 for img in extra_images:
-                    try:
-                        url = file_service.upload(img, subfolder='images')
-                        JobImage.objects.create(job=updated_job, image_url=url, file_name=img.name, is_cover=False)
-                    except ValueError as e:
-                        logger.warning(f"Image skipped ({img.name}): {e}")
-
-            # ── Optional: add attachments ──────────────────────────────────
-            attachment_files = request.FILES.getlist("attachments")
-            if attachment_files:
-                existing_count = updated_job.attachments.count()
-                slots_available = MAX_ATTACHMENTS_PER_JOB - existing_count
-                if len(attachment_files) > slots_available:
-                    return Response(
-                        {"error": f"Only {slots_available} attachment slot(s) remain (max {MAX_ATTACHMENTS_PER_JOB})."},
-                        status=400,
+                    url = file_service.upload(img, subfolder='images')
+                    uploaded_urls.append(url)
+                    JobImage.objects.create(
+                        job=updated_job, image_url=url,
+                        file_name=img.name, is_cover=False,
                     )
-
-                upload_errors = []
-                uploaded = []
-                for f in attachment_files:
-                    try:
+ 
+                # Add attachments (bulk_create for efficiency)
+                if attachment_files:
+                    new_attachments = []
+                    for f in attachment_files:
                         url = file_service.upload(f, subfolder="documents")
+                        uploaded_urls.append(url)
                         mime_type, _ = mimetypes.guess_type(f.name)
-                        uploaded.append(
-                            JobAttachment(
-                                job=updated_job,
-                                file_url=url,
-                                file_name=f.name,
-                                file_size=f.size,
-                                file_type=mime_type,
-                            )
-                        )
-                    except ValueError as e:
-                        upload_errors.append({"file": f.name, "error": str(e)})
-
-                if upload_errors:
-                    return Response({"errors": upload_errors}, status=400)
-
-                JobAttachment.objects.bulk_create(uploaded)
-
+                        new_attachments.append(JobAttachment(
+                            job=updated_job, file_url=url, file_name=f.name,
+                            file_size=f.size, file_type=mime_type,
+                        ))
+                    JobAttachment.objects.bulk_create(new_attachments)
+ 
+        except ValueError as e:
+            self._rollback_uploads(file_service, uploaded_urls)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+ 
+        except Exception as e:
+            self._rollback_uploads(file_service, uploaded_urls)
+            logger.error(f"Unexpected error in UpdateJobView: {e}", exc_info=True)
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+ 
+        # ── Remove old cover from storage only after DB committed cleanly ──
+        if replaced_cover_url:
+            try:
+                file_service.remove(replaced_cover_url)
+            except Exception as e:
+                logger.warning(f"Old cover not removed from storage ({replaced_cover_url}): {e}")
+ 
         return Response(
             {"message": "Job updated successfully", "data": serializer.data},
-            status=200,
+            status=status.HTTP_200_OK,
         )
-
-        
-
+ 
+    @staticmethod
+    def _rollback_uploads(file_service, urls):
+        for url in urls:
+            try:
+                file_service.remove(url)
+            except Exception as ex:
+                logger.warning(f"Could not remove file during rollback ({url}): {ex}")
+ 
+ 
 class DeleteJobView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
-
+ 
     def delete(self, request, job_id):
         try:
             job = Job.objects.prefetch_related('images', 'attachments').get(pk=job_id)
         except Job.DoesNotExist:
-            return Response({"error": "Job not found"}, status=404)
-
+            return Response({"error": "Job not found"}, status=status.HTTP_404_NOT_FOUND)
+ 
+        # ── Ownership check ────────────────────────────────────────────────
+        if job.employer.user != request.user:
+            return Response({"error": "You do not own this job"}, status=status.HTTP_403_FORBIDDEN)
+ 
         job_title = job.title
         file_service = FileUploadService()
-
-        # ── Delete physical image files ────────────────────────────────────
-        for image in job.images.all():
-            if image.image_url:
-                try:
-                    deleted = file_service.remove(image.image_url)
-                    if not deleted:
-                        logger.warning(
-                            f"Image file not found on disk (job={job_id}): {image.image_url}"
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"Failed to delete image file (job={job_id}, url={image.image_url}): {e}",
-                        exc_info=True,
-                    )
-
-        # ── Delete physical attachment files ───────────────────────────────
-        for attachment in job.attachments.all():
-            if attachment.file_url:
-                try:
-                    deleted = file_service.remove(attachment.file_url)
-                    if not deleted:
-                        logger.warning(
-                            f"Attachment file not found on disk (job={job_id}): {attachment.file_url}"
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"Failed to delete attachment file (job={job_id}, url={attachment.file_url}): {e}",
-                        exc_info=True,
-                    )
-
-        # ── Delete the DB record (cascades to images & attachments rows) ───
-        job.delete()
-
+ 
+        # ── Collect file URLs before deleting the DB record ────────────────
+        image_urls = [img.image_url for img in job.images.all() if img.image_url]
+        attachment_urls = [att.file_url for att in job.attachments.all() if att.file_url]
+ 
+        # ── Delete DB record atomically (cascades to images & attachments) ─
+        # Files are intentionally removed AFTER a successful DB delete.
+        # If the DB delete fails, the transaction rolls back and we keep the files.
+        # If file removal fails after a successful DB delete, we log and continue
+        # (orphaned files are preferable to a partially-deleted job record).
+        try:
+            with transaction.atomic():
+                job.delete()
+        except Exception as e:
+            logger.error(f"Failed to delete job {job_id} from DB: {e}", exc_info=True)
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+ 
+        # ── Remove physical files (best-effort, outside the transaction) ───
+        for url in image_urls:
+            try:
+                deleted = file_service.remove(url)
+                if not deleted:
+                    logger.warning(f"Image file not found on storage (job={job_id}): {url}")
+            except Exception as e:
+                logger.error(f"Failed to delete image (job={job_id}, url={url}): {e}", exc_info=True)
+ 
+        for url in attachment_urls:
+            try:
+                deleted = file_service.remove(url)
+                if not deleted:
+                    logger.warning(f"Attachment file not found on storage (job={job_id}): {url}")
+            except Exception as e:
+                logger.error(f"Failed to delete attachment (job={job_id}, url={url}): {e}", exc_info=True)
+ 
         # ── Notify ────────────────────────────────────────────────────────
         send_otp_to_email(
             user=request.user,
             otp_type='job_notification',
             action_type='deleted',
-            job_title=job_title
+            job_title=job_title,
         )
-        return Response({"message": "Job deleted successfully"}, status=204)
+ 
+        return Response({"message": "Job deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
 
 class JobSkillsView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
@@ -975,6 +1046,104 @@ class ListJobsWithApplicationsView(views.APIView):
             return Response(
                 {
                     "message": "Failed to fetch jobs with applications",
+                    "error": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+#list draft jobs
+class ListDraftJobsView(views.APIView):
+    # permission_classes = [IsAdminUser]
+    pagination_class = CustomPagination
+
+    def get(self, request):
+        try:
+            jobs = (
+                Job.objects
+                .annotate(
+                    total_applications=Count('jobapplication', distinct=True),
+                    skills_count=Count('job_skills', distinct=True),  # required by JobListSerializer
+                )
+                .filter(status='draft')
+                .select_related('employer', 'category')       # flattens FK lookups into one query
+                .prefetch_related('images', 'attachments')    # required by JobListSerializer
+                .only(                                        # fetch only columns the serializer uses
+                    'id', 'title', 'description', 'location_text', 'job_type',
+                    'urgency_level', 'budget_min', 'budget_max', 'payment_type',
+                    'status', 'admin_approved', 'views_count', 'applications_count',
+                    'created_at', 'expires_at',
+                    'employer__id', 'employer__company_name',
+                    'category__id', 'category__name',
+                )
+                .order_by('-created_at')
+            )
+            #pagination
+            paginator = self.pagination_class()
+            paginated_jobs = paginator.paginate_queryset(jobs, request)
+            serializer = JobListSerializer(paginated_jobs, many=True)
+
+            return Response(
+                {
+                    "message": "Draft jobs fetched successfully",
+                    "count": jobs.count(),
+                    "data": serializer.data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            return Response(
+                {
+                    "message": "Failed to fetch draft jobs",
+                    "error": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+#list active jobs
+class ListActiveJobsView(views.APIView):
+    # permission_classes = [IsAdminUser]
+    pagination_class = CustomPagination
+
+    def get(self, request):
+        try:
+            jobs = (
+                Job.objects
+                .annotate(
+                    total_applications=Count('jobapplication', distinct=True),
+                    skills_count=Count('job_skills', distinct=True),  # required by JobListSerializer
+                )
+                .filter(status='active')
+                .select_related('employer', 'category')       # flattens FK lookups into one query
+                .prefetch_related('images', 'attachments')    # required by JobListSerializer
+                .only(                                        # fetch only columns the serializer uses
+                    'id', 'title', 'description', 'location_text', 'job_type',
+                    'urgency_level', 'budget_min', 'budget_max', 'payment_type',
+                    'status', 'admin_approved', 'views_count', 'applications_count',
+                    'created_at', 'expires_at',
+                    'employer__id', 'employer__company_name',
+                    'category__id', 'category__name',
+                )
+                .order_by('-created_at')
+            )
+            #pagination
+            paginator = self.pagination_class()
+            paginated_jobs = paginator.paginate_queryset(jobs, request)
+            serializer = JobListSerializer(paginated_jobs, many=True)
+
+            return Response(
+                {
+                    "message": "Active jobs fetched successfully",
+                    "count": jobs.count(),
+                    "data": serializer.data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            return Response(
+                {
+                    "message": "Failed to fetch active jobs",
                     "error": str(e),
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
