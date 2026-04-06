@@ -6,7 +6,7 @@ from .models import Job, JobCategory, JobSkill, JobImage, JobAttachment
 from applications.models import JobApplication
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated,IsAdminUser
-from django.db import DatabaseError
+from django.db import DatabaseError,transaction
 from django.db.models import Q, Count,Case,When,IntegerField,Prefetch
 from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
 from django.shortcuts import get_object_or_404
