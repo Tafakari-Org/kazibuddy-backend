@@ -11,37 +11,33 @@ from .serializers import (
     CreateAssignmentSerializer,
     AssignmentCheckinSerializer,
     AssignmentMilestoneSerializer,
-    UpdateAssignmentStatusSerializer,
     UpdateAssignmentMilestoneSerializer,
 )
 from utils.custom_pagination import CustomPagination
 from utils.views import send_otp_to_email
 
 
-#Assignments
+# ── Assignments ───────────────────────────────────────────────────────────────
 
 class ListCreateAssignmentView(APIView):
     """
-    GET  /assignments/         — list all assignments
-    POST /assignments/         — create a new assignment
+    GET  /assignments/  — list all assignments
+    POST /assignments/  — create a new assignment
     """
     permission_classes = [IsAdminUser]
     pagination_class = CustomPagination
 
     def get(self, request):
         try:
-            status_filter = request.query_params.get('status')
             worker_id = request.query_params.get('worker_id')
             job_id = request.query_params.get('job_id')
 
             assignments = Assignment.objects.select_related(
-                'job', 'worker__user', 'employer__user', 'application'
+                'job', 'worker__user', 'employer__user'
             ).prefetch_related(
-                'assignmentcheckin_set', 'assignmentmilestone_set'
+                'checkins', 'milestones'
             ).order_by('-created_at')
 
-            if status_filter:
-                assignments = assignments.filter(status=status_filter)
             if worker_id:
                 assignments = assignments.filter(worker_id=worker_id)
             if job_id:
@@ -79,21 +75,7 @@ class ListCreateAssignmentView(APIView):
             with transaction.atomic():
                 assignment = serializer.save()
                 assignment.job.is_assigned = True
-                assignment.job.status = 'active'
-                # assignment.job.applications_count = assignment.job.applications_count - 1
-                assignment.job.save(update_fields=['is_assigned', 'status', 'applications_count'])
-
-            #set application status to accepted
-            try:
-                assignment.application.status = 'accepted'
-                assignment.application.save(update_fields=['status'])
-            except Exception as e:
-                return Response({
-                    'status': 'error',
-                    'message': 'Failed to update application status.',
-                    'errors': str(e),
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+                assignment.job.save(update_fields=['is_assigned'])
 
             # Notify worker
             send_otp_to_email(
@@ -102,9 +84,9 @@ class ListCreateAssignmentView(APIView):
                 action_type='assignment_created',
                 job_title=assignment.job.title,
                 employer_name=assignment.employer.user.full_name,
-                start_date=str(assignment.start_date),
-                agreed_rate=str(assignment.agreed_rate),
-                payment_type=assignment.payment_type,
+                start_date=str(assignment.job.start_date),
+                agreed_rate=str(assignment.job.budget_min),
+                payment_type=assignment.job.payment_type,
             )
 
             # Notify employer
@@ -114,9 +96,9 @@ class ListCreateAssignmentView(APIView):
                 action_type='assignment_created',
                 job_title=assignment.job.title,
                 worker_name=assignment.worker.user.full_name,
-                start_date=str(assignment.start_date),
-                agreed_rate=str(assignment.agreed_rate),
-                payment_type=assignment.payment_type,
+                start_date=str(assignment.job.start_date),
+                agreed_rate=str(assignment.job.budget_min),
+                payment_type=assignment.job.payment_type,
             )
 
             return Response({
@@ -146,7 +128,7 @@ class AssignmentDetailView(APIView):
             return Assignment.objects.select_related(
                 'job', 'worker__user', 'employer__user'
             ).prefetch_related(
-                'assignmentcheckin_set', 'assignmentmilestone_set'
+                'checkins', 'milestones'
             ).get(id=assignment_id)
         except Assignment.DoesNotExist:
             return None
@@ -217,7 +199,6 @@ class AssignmentDetailView(APIView):
                 }, status=status.HTTP_404_NOT_FOUND)
 
             with transaction.atomic():
-                # Reopen job when assignment is deleted
                 assignment.job.is_assigned = False
                 assignment.job.save(update_fields=['is_assigned'])
                 assignment.delete()
@@ -235,69 +216,7 @@ class AssignmentDetailView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class UpdateAssignmentStatusView(APIView):
-    """PATCH /assignments/<id>/status/ — update assignment status with transition validation"""
-    permission_classes = [IsAdminUser]
-
-    def patch(self, request, assignment_id):
-        try:
-            assignment = Assignment.objects.select_related('job').get(id=assignment_id)
-        except Assignment.DoesNotExist:
-            return Response({
-                'status': 'error',
-                'message': 'Assignment not found.',
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        try:
-            serializer = UpdateAssignmentStatusSerializer(
-                data=request.data,
-                context={'instance': assignment}
-            )
-            if not serializer.is_valid():
-                return Response({
-                    'status': 'error',
-                    'message': 'Invalid status transition.',
-                    'errors': serializer.errors,
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            with transaction.atomic():
-                new_status = serializer.validated_data['status']
-                assignment.status = new_status
-
-                if serializer.validated_data.get('completion_percentage') is not None:
-                    assignment.completion_percentage = serializer.validated_data['completion_percentage']
-
-                # Set relevant timestamps automatically
-                if new_status == 'in_progress' and not assignment.worker_started_at:
-                    assignment.worker_started_at = timezone.now()
-                elif new_status == 'completed':
-                    assignment.worker_completed_at = timezone.now()
-                    assignment.completion_percentage = 100
-                    assignment.job.status = 'filled'
-                    assignment.job.filled_at = timezone.now()
-                    assignment.job.save(update_fields=['status', 'filled_at'])
-                elif new_status == 'cancelled':
-                    assignment.job.is_assigned = False
-                    assignment.job.status = 'active'
-                    assignment.job.save(update_fields=['is_assigned', 'status'])
-
-                assignment.save()
-
-            return Response({
-                'status': 'success',
-                'message': f'Assignment status updated to {new_status}.',
-                'data': AssignmentSerializer(assignment).data,
-            }, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            return Response({
-                'status': 'error',
-                'message': 'Failed to update assignment status.',
-                'errors': str(e),
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-#Checkins
+# ── Checkins ──────────────────────────────────────────────────────────────────
 
 class ListCreateCheckinView(APIView):
     """
