@@ -1015,7 +1015,7 @@ class ListJobsWithApplicationsView(views.APIView):
                     total_applications=Count('jobapplication', distinct=True),
                     skills_count=Count('job_skills', distinct=True),  # required by JobListSerializer
                 )
-                .filter(total_applications__gt=0)
+                .filter(total_applications__gt=0,admin_approved=True,is_assigned=False)
                 .select_related('employer', 'category')       # flattens FK lookups into one query
                 .prefetch_related('images', 'attachments')    # required by JobListSerializer
                 .only(                                        # fetch only columns the serializer uses
