@@ -27,6 +27,8 @@ from .views import (
     TotalJobsView,
     TotalJobCategoriesView,
     ListJobsWithApplicationsView,
+    ListDraftJobsView,
+    ListActiveJobsView
 )
 
 from django.urls import path
@@ -60,4 +62,6 @@ urlpatterns = [
     path('total/', TotalJobsView.as_view(), name='total-jobs'),
     path('categories/total/', TotalJobCategoriesView.as_view(), name='total-job-categories'),
     path('with-applications/', ListJobsWithApplicationsView.as_view(), name='list-jobs-with-applications'),
+    path('draft/', ListDraftJobsView.as_view(), name='list-draft-jobs'),
+    path('active/', ListActiveJobsView.as_view(), name='list-active-jobs'),
 ]

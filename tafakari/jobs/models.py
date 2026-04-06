@@ -76,7 +76,7 @@ class Job(models.Model):
     visibility = models.CharField(max_length=20, choices=Visibility.choices, default=Visibility.PUBLIC)
     admin_approved = models.BooleanField(default=False)
     is_featured = models.BooleanField(default=False)
-    is_assigned = models.BooleanField(default=False, null=True, blank=True)
+    is_assigned = models.BooleanField(default=False, null=False, blank=False)
     views_count = models.IntegerField(default=0)
     applications_count = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
