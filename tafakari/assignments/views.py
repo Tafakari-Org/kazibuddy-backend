@@ -13,6 +13,7 @@ from .serializers import (
     AssignmentMilestoneSerializer,
     UpdateAssignmentMilestoneSerializer,
 )
+from applications.models import JobApplication
 from utils.custom_pagination import CustomPagination
 from utils.views import send_otp_to_email
 
@@ -76,6 +77,25 @@ class ListCreateAssignmentView(APIView):
                 assignment = serializer.save()
                 assignment.job.is_assigned = True
                 assignment.job.save(update_fields=['is_assigned'])
+
+                # Accept the assigned worker's application
+                JobApplication.objects.filter(
+                    job=assignment.job,
+                    worker=assignment.worker,
+                ).update(
+                    status='accepted',
+                    responded_at=timezone.now(),
+                )
+
+                # Reject all other applications for the same job
+                JobApplication.objects.filter(
+                    job=assignment.job,
+                ).exclude(
+                    worker=assignment.worker,
+                ).update(
+                    status='rejected',
+                    responded_at=timezone.now(),
+                )
 
             # Notify worker
             send_otp_to_email(
@@ -393,5 +413,132 @@ class UpdateMilestoneStatusView(APIView):
             return Response({
                 'status': 'error',
                 'message': 'Failed to update milestone.',
+                'errors': str(e),
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+class NotifyRejectedApplicantsView(APIView):
+    """
+    POST /assignments/<id>/notify-rejected/
+    Sends rejection emails to all rejected applicants for the assignment's job.
+    """
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, assignment_id):
+        try:
+            try:
+                assignment = Assignment.objects.select_related(
+                    'job'
+                ).get(id=assignment_id)
+            except Assignment.DoesNotExist:
+                return Response({
+                    'status': 'error',
+                    'message': 'Assignment not found.',
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            rejected_applications = JobApplication.objects.select_related(
+                'worker__user'
+            ).filter(
+                job=assignment.job,
+                # status='rejected',
+            )
+
+            if not rejected_applications.exists():
+                return Response({
+                    'status': 'success',
+                    'message': 'No rejected applicants to notify.',
+                }, status=status.HTTP_200_OK)
+
+            notified, failed = [], []
+
+            for application in rejected_applications:
+                try:
+                    send_otp_to_email(
+                        user=application.worker.user,
+                        otp_type='application_notification',
+                        action_type='application_rejected',
+                        job_title=assignment.job.title,
+                    )
+                    notified.append(str(application.worker.id))
+                except Exception:
+                    failed.append(str(application.worker.id))
+
+            return Response({
+                'status': 'success',
+                'message': f'{len(notified)} applicant(s) notified, {len(failed)} failed.',
+                'data': {
+                    'notified': notified,
+                    'failed': failed,
+                }
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Failed to send rejection notifications.',
+                'errors': str(e),
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class NotifySingleRejectedApplicantView(APIView):
+    """
+    POST /assignments/<id>/notify-rejected/<applicant_id>/
+    Sends a rejection email to a specific applicant for the assignment's job.
+    """
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, assignment_id, applicant_id):
+        try:
+            try:
+                assignment = Assignment.objects.select_related(
+                    'job'
+                ).get(id=assignment_id)
+            except Assignment.DoesNotExist:
+                return Response({
+                    'status': 'error',
+                    'message': 'Assignment not found.',
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            try:
+                application = JobApplication.objects.select_related(
+                    'worker__user'
+                ).get(
+                    id=applicant_id,
+                    job=assignment.job,
+                )
+            except JobApplication.DoesNotExist:
+                return Response({
+                    'status': 'error',
+                    'message': 'Application not found for this assignment.',
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # if application.status != 'rejected':
+            #     return Response({
+            #         'status': 'error',
+            #         'message': f'Applicant status is "{application.status}", not "rejected".',
+            #     }, status=status.HTTP_400_BAD_REQUEST)
+
+            send_otp_to_email(
+                user=application.worker.user,
+                otp_type='application_notification',
+                action_type='application_rejected',
+                job_title=assignment.job.title,
+            )
+
+            return Response({
+                'status': 'success',
+                'message': 'Rejection email sent successfully.',
+                'data': {
+                    'worker_id': str(application.worker.id),
+                    'worker_name': application.worker.user.full_name,
+                    'job_title': assignment.job.title,
+                }
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Failed to send rejection notification.',
                 'errors': str(e),
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

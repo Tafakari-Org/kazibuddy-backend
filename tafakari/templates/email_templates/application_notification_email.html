@@ -1,0 +1,480 @@
+{% load static %}
+{% load i18n %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KaziBuddy • Application Update</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #EFE5E8;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            padding: 48px 20px;
+            margin: 0;
+        }
+
+        .email-wrapper {
+            max-width: 620px;
+            margin: 0 auto;
+            background: #FFFFFF;
+            border-radius: 3px;
+            box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(74, 0, 16, 0.06);
+            overflow: hidden;
+            border: 1px solid #E0C9CF;
+        }
+
+        .maroon-top-bar {
+            height: 5px;
+            background: linear-gradient(90deg, #4A0010 0%, #6B0020 50%, #A52840 100%);
+        }
+
+        /* ---------- HEADER ---------- */
+        .header-official {
+            background: linear-gradient(115deg, #4A0010 0%, #6B0020 70%, #7F1230 100%);
+            padding: 34px 36px 28px 36px;
+        }
+
+        .brand-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .brand-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-mark {
+            width: 40px;
+            height: 40px;
+            background: #FFFFFF;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Playfair Display', serif;
+            font-size: 20px;
+            font-weight: 800;
+            color: #6B0020;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        }
+
+        .brand-name {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: -0.2px;
+            color: #FFFFFF;
+            border-left: 2px solid rgba(201, 168, 76, 0.5);
+            padding-left: 12px;
+        }
+
+        .official-tag {
+            background: rgba(255,255,255,0.12);
+            padding: 5px 12px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #F5E6EA;
+            border: 0.5px solid rgba(255,255,255,0.2);
+        }
+
+        .title-block h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: #FFFFFF;
+            letter-spacing: -0.2px;
+            line-height: 1.25;
+            margin-bottom: 8px;
+        }
+
+        .title-sub {
+            font-size: 12px;
+            font-weight: 500;
+            color: rgba(255,255,245,0.7);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-top: 1px solid rgba(201,168,76,0.35);
+            display: inline-block;
+            padding-top: 8px;
+        }
+
+        /* ---------- CONTENT ---------- */
+        .content-main {
+            padding: 36px 36px 28px 36px;
+            background: #FFFFFF;
+        }
+
+        .greeting {
+            font-size: 20px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 18px;
+            font-family: 'Inter', sans-serif;
+            border-left: 3px solid #6B0020;
+            padding-left: 14px;
+        }
+
+        .notification-message {
+            font-size: 15px;
+            line-height: 1.65;
+            color: #1E1A1C;
+            margin-bottom: 28px;
+            font-weight: 450;
+        }
+
+        .notification-message strong {
+            color: #6B0020;
+            font-weight: 700;
+        }
+
+        /* ---------- STATUS BANNER ---------- */
+        .status-banner {
+            background: #FDF2F4;
+            border: 1px solid #DABBC3;
+            border-left: 4px solid #8B1A35;
+            border-radius: 3px;
+            padding: 14px 20px;
+            margin-bottom: 28px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-banner-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .status-banner-text {
+            font-size: 13px;
+            font-weight: 600;
+            color: #6B0020;
+            letter-spacing: 0.2px;
+        }
+
+        /* ---------- JOB CARD ---------- */
+        .job-card {
+            background: #FDF8F9;
+            border-left: 4px solid #8B1A35;
+            border-radius: 3px;
+            padding: 20px 24px;
+            margin: 0 0 28px 0;
+            box-shadow: 0 1px 2px rgba(74, 0, 16, 0.04);
+        }
+
+        .card-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: #7A5C66;
+            margin-bottom: 14px;
+        }
+
+        .detail-line {
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+            padding: 8px 0;
+            border-bottom: 1px solid #EADCE1;
+        }
+
+        .detail-line:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .detail-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            color: #8F6F7A;
+            min-width: 80px;
+            flex-shrink: 0;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #000000;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #F7EFF1;
+            padding: 4px 12px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #6B0020;
+            border: 1px solid #DABBC3;
+        }
+
+        .status-badge::before {
+            content: "●";
+            font-size: 8px;
+            color: #8B1A35;
+        }
+
+        /* ---------- ENCOURAGEMENT BLOCK ---------- */
+        .encouragement-block {
+            background: #FAFAFA;
+            border-radius: 3px;
+            border: 1px solid #EFE2E6;
+            padding: 20px 24px;
+            margin-bottom: 28px;
+        }
+
+        .encouragement-block .enc-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #4A0010;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 12px;
+        }
+
+        .encouragement-block ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .encouragement-block ul li {
+            font-size: 13px;
+            color: #3A2830;
+            padding: 6px 0;
+            border-bottom: 1px solid #EFE2E6;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            line-height: 1.5;
+        }
+
+        .encouragement-block ul li:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .enc-dot {
+            color: #8B1A35;
+            font-size: 16px;
+            line-height: 1.3;
+            flex-shrink: 0;
+        }
+
+        /* ---------- SUPPORT ---------- */
+        .support-message {
+            font-size: 13px;
+            color: #5C4850;
+            margin: 24px 0 0 0;
+            line-height: 1.55;
+            border-top: 1px solid #EFE2E6;
+            padding-top: 22px;
+        }
+
+        /* ---------- BUTTON ---------- */
+        .button-container {
+            margin: 28px 0 8px;
+        }
+
+        .btn-dashboard {
+            display: inline-block;
+            background: #6B0020;
+            color: #FFFFFF;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 12px 28px;
+            border-radius: 3px;
+            border: 1px solid #6B0020;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .soft-divider {
+            height: 1px;
+            background: #E8D8DE;
+            margin: 28px 0 20px;
+        }
+
+        /* ---------- FOOTER ---------- */
+        .footer-official {
+            background: #FDF8F9;
+            border-top: 1px solid #E2D0D6;
+            padding: 24px 36px 28px;
+        }
+
+        .footer-brand {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 14px;
+            color: #6B0020;
+            margin-bottom: 8px;
+            letter-spacing: 0.3px;
+        }
+
+        .footer-text {
+            font-size: 12px;
+            color: #6A555E;
+            margin: 5px 0;
+            line-height: 1.5;
+        }
+
+        .footer-legal {
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px solid #EADCE1;
+            font-size: 11px;
+            color: #A4808C;
+            letter-spacing: 0.2px;
+        }
+
+        /* ---------- RESPONSIVE ---------- */
+        @media (max-width: 520px) {
+            .content-main, .header-official, .footer-official {
+                padding-left: 24px;
+                padding-right: 24px;
+            }
+            .detail-line {
+                flex-direction: column;
+                gap: 4px;
+                align-items: flex-start;
+            }
+            .detail-label {
+                min-width: auto;
+            }
+            .brand-row {
+                gap: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-wrapper">
+        <div class="maroon-top-bar"></div>
+
+        <!-- HEADER -->
+        <div class="header-official">
+            <div class="brand-row">
+                <div class="brand-left">
+                    <div class="brand-mark">K</div>
+                    <div class="brand-name">KaziBuddy</div>
+                </div>
+                <div class="official-tag">APPLICATION UPDATE</div>
+            </div>
+            <div class="title-block">
+                <h1>Application Status</h1>
+                <div class="title-sub">Thank you for applying · Keep going</div>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="content-main">
+
+            <div class="greeting">Hello, {{ full_name }}</div>
+
+            <!-- STATUS BANNER -->
+            <div class="status-banner">
+                <div class="status-banner-icon">📋</div>
+                <div class="status-banner-text">Your application has been reviewed and a decision has been made.</div>
+            </div>
+
+            <div class="notification-message">
+                Thank you for applying to <strong>{{ job_title }}</strong>. After careful consideration, the employer has decided to move forward with another candidate for this role. We know this isn't the news you were hoping for, and we genuinely appreciate the time and effort you put into your application.
+                <br><br>
+                This is not a reflection of your worth or potential — the job market is competitive, and the right opportunity is out there for you.
+            </div>
+
+            <!-- JOB CARD -->
+            <div class="job-card">
+                <div class="card-label">APPLICATION DETAILS</div>
+                <div class="detail-line">
+                    <span class="detail-label">Job Title</span>
+                    <span class="detail-value">{{ job_title }}</span>
+                </div>
+                {% if application_id %}
+                <div class="detail-line">
+                    <span class="detail-label">Application ID</span>
+                    <span class="detail-value">{{ application_id }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-line">
+                    <span class="detail-label">Status</span>
+                    <span class="status-badge">Not Selected</span>
+                </div>
+            </div>
+
+            <!-- ENCOURAGEMENT BLOCK -->
+            <div class="encouragement-block">
+                <div class="enc-title">What you can do next</div>
+                <ul>
+                    <li>
+                        <span class="enc-dot">›</span>
+                        <span>Browse other open jobs on KaziBuddy — new listings are posted daily.</span>
+                    </li>
+                    <li>
+                        <span class="enc-dot">›</span>
+                        <span>Update your worker profile to highlight your latest skills and experience.</span>
+                    </li>
+                    <li>
+                        <span class="enc-dot">›</span>
+                        <span>Stay active — employers often search the worker pool directly for candidates.</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- SUPPORT NOTE -->
+            <div class="support-message">
+                <strong>📌 A note from the team</strong> — We are rooting for you. If you have questions about your application or need help optimising your profile, our support desk is available Monday–Friday, 8am–5pm EAT.
+            </div>
+
+            <div class="button-container">
+                <a href="https://kazibuddy.tech" class="btn-dashboard">BROWSE OPEN JOBS</a>
+            </div>
+
+            <div class="soft-divider"></div>
+            <div style="font-size: 12px; color: #6F4F5A; margin-top: 6px;">
+                <span>🔒 Secure platform · This message was generated automatically.</span>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer-official">
+            <div class="footer-brand">KaziBuddy · Powered by Tafakari Team</div>
+            <div class="footer-text">This is an automated transactional email from KaziBuddy, the trusted job ecosystem.</div>
+            <div class="footer-text">You received this notification because you applied to a job on our platform.</div>
+            <div class="footer-legal">
+                © 2026 Tafakari Team. All rights reserved. &nbsp;|&nbsp;
+                <a href="https://kazibuddy.tech" style="color: #8B1A35; text-decoration: none;">Privacy & Terms</a>
+                &nbsp;|&nbsp; kazibuddy.tech
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -5,6 +5,8 @@ from .views import (
     ListCreateCheckinView,
     ListCreateMilestoneView,
     UpdateMilestoneStatusView,
+    NotifyRejectedApplicantsView,
+    NotifySingleRejectedApplicantView,
 )
 
 urlpatterns = [
@@ -17,4 +19,8 @@ urlpatterns = [
     # Milestones
     path('<uuid:assignment_id>/milestones/', ListCreateMilestoneView.as_view(), name='list-create-milestones'),
     path('milestones/<uuid:milestone_id>/status/', UpdateMilestoneStatusView.as_view(), name='update-milestone-status'),
+
+    # Notifications
+    path('<uuid:assignment_id>/notify-rejected/', NotifyRejectedApplicantsView.as_view(), name='notify-rejected-applicants'),
+    path('<uuid:assignment_id>/notify-rejected/<uuid:applicant_id>/', NotifySingleRejectedApplicantView.as_view(), name='notify-single-rejected-applicant'),
 ]
