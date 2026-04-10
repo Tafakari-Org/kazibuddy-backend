@@ -650,6 +650,96 @@ class JobsByEmployerView(views.APIView):
                 )
             except Job.DoesNotExist:
                 return Response({"error": "No jobs found for the given employer"}, status=404)
+
+#list admin approved jobs by a specific employer
+# views.py
+class ApprovedJobsByEmployerView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = CustomPagination
+
+    def get(self, request, employer_id):
+        # Verify the authenticated user matches the employer making the request
+        if not hasattr(request.user, 'employerprofile') or request.user.employerprofile.id != employer_id:
+            return Response(
+                {"error": "You are not authorized to view jobs for this employer"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            paginator = self.pagination_class()
+            jobs = Job.objects.filter(
+                employer_id=employer_id,
+                is_assigned=False,
+                admin_approved=True
+            )
+
+            if not jobs.exists():
+                return Response(
+                    {"error": "No approved jobs found for this employer"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            paginated_jobs = paginator.paginate_queryset(jobs, request)
+            serializer = JobListSerializer(paginated_jobs, many=True)
+            employer_name = jobs.first().employer.user.full_name
+
+            return Response(
+                {
+                    "message": f"Jobs retrieved successfully for employer {employer_name}",
+                    "data": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class AssignedJobsByEmployerView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = CustomPagination
+
+    def get(self, request, employer_id):
+        # Verify the authenticated user matches the employer making the request
+        if not hasattr(request.user, 'employerprofile') or request.user.employerprofile.id != employer_id:
+            return Response(
+                {"error": "You are not authorized to view jobs for this employer"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            paginator = self.pagination_class()
+            jobs = Job.objects.filter(
+                employer_id=employer_id,
+                is_assigned=True
+            )
+
+            if not jobs.exists():
+                return Response(
+                    {"error": "No assigned jobs found for this employer"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            paginated_jobs = paginator.paginate_queryset(jobs, request)
+            serializer = JobListSerializer(paginated_jobs, many=True)
+            employer_name = jobs.first().employer.user.full_name
+
+            return Response(
+                {
+                    "message": f"Jobs retrieved successfully for employer {employer_name}",
+                    "data": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
 class ListJobsByCategoryView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
