@@ -671,7 +671,7 @@ class ApprovedJobsByEmployerView(views.APIView):
                 employer_id=employer_id,
                 is_assigned=False,
                 admin_approved=True
-            )
+            ).select_related('employer', 'category').prefetch_related('job_skills', 'images', 'attachments')
 
             if not jobs.exists():
                 return Response(
@@ -683,13 +683,10 @@ class ApprovedJobsByEmployerView(views.APIView):
             serializer = JobListSerializer(paginated_jobs, many=True)
             employer_name = jobs.first().employer.user.full_name
 
-            return Response(
-                {
-                    "message": f"Jobs retrieved successfully for employer {employer_name}",
-                    "data": serializer.data
-                },
-                status=status.HTTP_200_OK
-            )
+            return paginator.get_paginated_response({
+                "message": f"Approved Jobs retrieved successfully for employer {employer_name}",
+                "data": serializer.data
+            })
 
         except Exception as e:
             return Response(
@@ -728,13 +725,10 @@ class AssignedJobsByEmployerView(views.APIView):
             serializer = AssignedJobListSerializer(paginated_jobs, many=True)
             employer_name = jobs.first().employer.user.full_name
 
-            return Response(
-                {
-                    "message": f"Jobs retrieved successfully for employer {employer_name}",
-                    "data": serializer.data
-                },
-                status=status.HTTP_200_OK
-            )
+            return paginator.get_paginated_response({
+                "message": f"Assigned Jobs retrieved successfully for employer {employer_name}",
+                "data": serializer
+            })
 
         except Exception as e:
             return Response(

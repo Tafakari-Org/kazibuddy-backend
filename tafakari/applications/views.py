@@ -390,6 +390,7 @@ class UserRejectedApplicationsView(APIView):
                     'status': 'error',
                     'message': 'You are not authorized to view these  applications.'
                 }, status=403)
+            
             applications = JobApplication.objects.filter(worker=worker_id, status='rejected')\
                 .select_related('job','worker')\
                 .prefetch_related('job__job_skills','job__category', 'job__images', 'job__attachments', 'worker__user')\
@@ -397,10 +398,11 @@ class UserRejectedApplicationsView(APIView):
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
             serializer = self.serializer_class(paginated_applications, many=True)
-            return Response({
+            return paginator.get_paginated_response({
                 'status': 'success',
+                'message': 'User rejected applications retrieved successfully.',
                 'data': serializer.data
-            }, status=200)
+            })
         except Exception as e:
             return Response({
                 'status': 'error',
