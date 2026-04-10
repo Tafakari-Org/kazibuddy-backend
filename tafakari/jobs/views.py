@@ -664,11 +664,13 @@ class ApprovedJobsByEmployerView(views.APIView):
                 {"error": "You are not authorized to view jobs for this employer"},
                 status=status.HTTP_403_FORBIDDEN
             )
+        #get employer profile id
+        employer_profile_id = request.user.employerprofile.id
 
         try:
             paginator = self.pagination_class()
             jobs = Job.objects.filter(
-                employer_id=employer_id,
+                employer_id=employer_profile_id,
                 is_assigned=False,
                 admin_approved=True
             ).select_related('employer', 'category').prefetch_related('job_skills', 'images', 'attachments')
@@ -706,11 +708,14 @@ class AssignedJobsByEmployerView(views.APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        #get employer profile id
+        employer_profile_id = request.user.employerprofile.id
+
         try:
             paginator = self.pagination_class()
             jobs = (
                 Job.objects
-                .filter(employer_id=employer_id, is_assigned=True)
+                .filter(employer_id=employer_profile_id, is_assigned=True)
                 .select_related('assignment__worker__user')  # avoids N+1 for worker
                 .annotate(skills_count=Count('job_skills'))      # keep existing annotation
             )
