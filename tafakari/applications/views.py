@@ -371,6 +371,43 @@ class AcceptedJobApplicationListView(APIView):
             }, status=500)  
 
 #list specific user rejected applications
+class UserRejectedApplicationsView(APIView):
+    # permission_classes = [IsAdminUser]
+    pagination_class = CustomPagination
+    serializer_class = JobApplicationSerializer
+
+    def get(self, request, *args, **kwargs):
+        try:
+            worker_id = kwargs.get('worker_id')
+            if not worker_id:
+                return Response({
+                    'status': 'error',
+                    'message': 'Worker ID is required.'
+                }, status=400)
+            #check if authenticated user is the worker
+            if request.user.workerprofile.id != worker_id:
+                return Response({
+                    'status': 'error',
+                    'message': 'You are not authorized to view these  applications.'
+                }, status=403)
+            applications = JobApplication.objects.filter(worker=worker_id, status='rejected')\
+                .select_related('job','worker')\
+                .prefetch_related('job__job_skills','job__category', 'job__images', 'job__attachments', 'worker__user')\
+                .order_by('-applied_at')
+            paginator = self.pagination_class()
+            paginated_applications = paginator.paginate_queryset(applications, request)
+            serializer = self.serializer_class(paginated_applications, many=True)
+            return Response({
+                'status': 'success',
+                'data': serializer.data
+            }, status=200)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Failed to retrieve user rejected applications.',
+                'errors': str(e)
+            }, status=500)
+
 
 #get total applications
 class TotalApplicationsView(APIView):
