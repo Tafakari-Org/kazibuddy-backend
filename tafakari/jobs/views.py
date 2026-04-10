@@ -659,7 +659,7 @@ class ApprovedJobsByEmployerView(views.APIView):
 
     def get(self, request, employer_id):
         # Verify the authenticated user matches the employer making the request
-        if not hasattr(request.user, 'employerprofile') or request.user.employerprofile.id != employer_id:
+        if not hasattr(request.user, 'employerprofile') or request.user.id != employer_id:
             return Response(
                 {"error": "You are not authorized to view jobs for this employer"},
                 status=status.HTTP_403_FORBIDDEN
