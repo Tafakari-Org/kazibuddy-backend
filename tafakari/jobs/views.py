@@ -732,7 +732,7 @@ class AssignedJobsByEmployerView(views.APIView):
 
             return paginator.get_paginated_response({
                 "message": f"Assigned Jobs retrieved successfully for employer {employer_name}",
-                "data": serializer
+                "data": serializer.data
             })
 
         except Exception as e:
