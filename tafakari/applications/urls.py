@@ -1,5 +1,18 @@
 from django.urls import path
-from .views import CreateJobApplicationView,MyJobApplicationListView,JobApplicationDetailView,SpecificJobApplicationListView,AllJobApplicationListView,TotalApplicationsView,TotalApplicationsByJobView,RejectedJobApplicationListView,PendingJobApplicationListView,AcceptedJobApplicationListView,JobApplicationWorkerView
+from .views import (
+    CreateJobApplicationView,
+    MyJobApplicationListView,
+    JobApplicationDetailView,
+    SpecificJobApplicationListView,
+    AllJobApplicationListView,
+    TotalApplicationsView,
+    TotalApplicationsByJobView,
+    RejectedJobApplicationListView,
+    PendingJobApplicationListView,
+    AcceptedJobApplicationListView,
+    JobApplicationWorkerView,
+    UserRejectedApplicationsView
+)
 
 urlpatterns = [
    
@@ -14,6 +27,7 @@ urlpatterns = [
     path('pending/', PendingJobApplicationListView.as_view(), name='pending-job-applications'),
     path('accepted/', AcceptedJobApplicationListView.as_view(), name='accepted-job-applications'),
     path('job/<uuid:job_id>/applicants/', JobApplicationWorkerView.as_view(), name='job-applicants'),
+    path('worker/<uuid:worker_id>/rejected/', UserRejectedApplicationsView.as_view(), name='user-rejected-applications'),
 
     
 ]
