@@ -7,12 +7,14 @@ from .views import (
     UpdateMilestoneStatusView,
     NotifyRejectedApplicantsView,
     NotifySingleRejectedApplicantView,
+    ListWorkerAssignmentsView,
 )
 
 urlpatterns = [
     # Assignments
     path('', ListCreateAssignmentView.as_view(), name='list-create-assignment'),
     path('<uuid:assignment_id>/', AssignmentDetailView.as_view(), name='assignment-detail'),
+    path('worker/<uuid:worker_id>/', ListWorkerAssignmentsView.as_view(), name='list-worker-assignments'),
     # Checkins
     path('<uuid:assignment_id>/checkins/', ListCreateCheckinView.as_view(), name='list-create-checkins'),
 

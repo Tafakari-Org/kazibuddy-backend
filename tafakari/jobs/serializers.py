@@ -166,5 +166,20 @@ class FeaturedJobSerializer(serializers.ModelSerializer):
             'payment_type': {'required': False},
         }
 
+class AssignedJobListSerializer(JobListSerializer):
+    """
+    Extends JobListSerializer with assigned worker details.
+    Used specifically in AssignedJobsByEmployerView.
+    """
+    worker_name = serializers.CharField(
+        source='assignment.worker.user.full_name', 
+        read_only=True
+    )
+    worker_id = serializers.UUIDField(
+        source='assignment.worker.id', 
+        read_only=True
+    )
 
+    class Meta(JobListSerializer.Meta):
+        fields = JobListSerializer.Meta.fields + ['worker_name', 'worker_id']
     

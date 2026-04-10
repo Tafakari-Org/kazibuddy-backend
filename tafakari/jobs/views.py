@@ -1,5 +1,5 @@
 from time import timezone
-from .serializers import JobSerializer, JobCategorySerializer, JobSkillSerializer, JobImageSerializer, JobAttachmentSerializer,JobListSerializer
+from .serializers import JobSerializer, JobCategorySerializer, JobSkillSerializer, JobImageSerializer, JobAttachmentSerializer,JobListSerializer,AssignedJobListSerializer
 from .search_serializers import JobSearchSerializer, JobSearchQuerySerializer
 from rest_framework import views, permissions, status
 from .models import Job, JobCategory, JobSkill, JobImage, JobAttachment
@@ -703,7 +703,6 @@ class AssignedJobsByEmployerView(views.APIView):
     pagination_class = CustomPagination
 
     def get(self, request, employer_id):
-        # Verify the authenticated user matches the employer making the request
         if not hasattr(request.user, 'employerprofile') or request.user.employerprofile.id != employer_id:
             return Response(
                 {"error": "You are not authorized to view jobs for this employer"},
@@ -712,9 +711,11 @@ class AssignedJobsByEmployerView(views.APIView):
 
         try:
             paginator = self.pagination_class()
-            jobs = Job.objects.filter(
-                employer_id=employer_id,
-                is_assigned=True
+            jobs = (
+                Job.objects
+                .filter(employer_id=employer_id, is_assigned=True)
+                .select_related('assignment__worker__user')  # avoids N+1 for worker
+                .annotate(skills_count=Count('job_skills'))      # keep existing annotation
             )
 
             if not jobs.exists():
@@ -724,7 +725,7 @@ class AssignedJobsByEmployerView(views.APIView):
                 )
 
             paginated_jobs = paginator.paginate_queryset(jobs, request)
-            serializer = JobListSerializer(paginated_jobs, many=True)
+            serializer = AssignedJobListSerializer(paginated_jobs, many=True)
             employer_name = jobs.first().employer.user.full_name
 
             return Response(
@@ -740,7 +741,7 @@ class AssignedJobsByEmployerView(views.APIView):
                 {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        
+
 class ListJobsByCategoryView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
     pagination_class = CustomPagination
