@@ -385,7 +385,7 @@ class UserRejectedApplicationsView(APIView):
                     'message': 'Worker ID is required.'
                 }, status=400)
             #check if authenticated user is the worker
-            if request.user.workerprofile.id != worker_id:
+            if request.user.id != worker_id:
                 return Response({
                     'status': 'error',
                     'message': 'You are not authorized to view these  applications.'
