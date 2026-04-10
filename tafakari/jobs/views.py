@@ -700,7 +700,7 @@ class AssignedJobsByEmployerView(views.APIView):
     pagination_class = CustomPagination
 
     def get(self, request, employer_id):
-        if not hasattr(request.user, 'employerprofile') or request.user.employerprofile.id != employer_id:
+        if not hasattr(request.user, 'employerprofile') or request.user.id != employer_id:
             return Response(
                 {"error": "You are not authorized to view jobs for this employer"},
                 status=status.HTTP_403_FORBIDDEN
@@ -1240,7 +1240,7 @@ class EmployerUnapprovedJobsListView(views.APIView):
     pagination_class = CustomPagination
 
     def get(self, request, employer_id):
-        if not hasattr(request.user, 'employerprofile') or request.user.employerprofile.id != employer_id:
+        if not hasattr(request.user, 'employerprofile') or request.user.id != employer_id:
             return Response({"status":"error", "message": "You are not authorized to view jobs for this employer"}, status=status.HTTP_403_FORBIDDEN) 
         try: 
             jobs = Job.objects.filter(admin_approved=False, employer_id=employer_id)\
