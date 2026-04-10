@@ -236,6 +236,35 @@ class AssignmentDetailView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+#list specific worker assignments
+class ListWorkerAssignmentsView(APIView):
+    # permission_classes = [IsAdminUser]
+    pagination_class = CustomPagination
+
+    def get(self, request, worker_id):
+        try:
+            assignments = Assignment.objects.select_related(
+                'job', 'worker__user', 'employer__user'
+            ).filter(worker_id=worker_id)
+
+            paginator = self.pagination_class()
+            paginated = paginator.paginate_queryset(assignments, request)
+            serializer = AssignmentSerializer(paginated, many=True)
+
+            return paginator.get_paginated_response({
+                'status': 'success',
+                'message': 'Assignments retrieved successfully.',
+                'data': serializer.data,
+            })
+
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Failed to retrieve assignments.',
+                'errors': str(e),
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 # ── Checkins ──────────────────────────────────────────────────────────────────
 
 class ListCreateCheckinView(APIView):
@@ -303,6 +332,7 @@ class ListCreateCheckinView(APIView):
                 'message': 'Failed to add checkin.',
                 'errors': str(e),
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 # ── Milestones ────────────────────────────────────────────────────────────────

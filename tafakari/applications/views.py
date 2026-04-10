@@ -369,7 +369,8 @@ class AcceptedJobApplicationListView(APIView):
                 'message': 'Failed to retrieve accepted job applications.',
                 'errors': str(e)
             }, status=500)  
-            
+
+#list specific user rejected applications
 
 #get total applications
 class TotalApplicationsView(APIView):
