@@ -1233,3 +1233,29 @@ class ListActiveJobsView(views.APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+#get unapproved jobs for specific user view
+class EmployerUnapprovedJobsListView(views.APIView):
+    # permission_classes = [permissions.IsAdminUser]
+    pagination_class = CustomPagination
+
+    def get(self, request, employer_id):
+        if not hasattr(request.user, 'employerprofile') or request.user.employerprofile.id != employer_id:
+            return Response({"status":"error", "message": "You are not authorized to view jobs for this employer"}, status=status.HTTP_403_FORBIDDEN) 
+        try: 
+            jobs = Job.objects.filter(admin_approved=False, employer_id=employer_id)\
+                .select_related('employer', 'category')\
+                .prefetch_related('images', 'attachments')\
+                .annotate(skills_count=Count('job_skills'))\
+                .order_by('-created_at')
+
+            paginator = self.pagination_class()
+            paginated_jobs = paginator.paginate_queryset(jobs, request)
+            serializer = JobListSerializer(paginated_jobs, many=True, context={'request': request})
+            return paginator.get_paginated_response({
+                "status":"success",
+                "message": "Unapproved jobs retrieved successfully",
+                "data": serializer.data,
+            }) 
+        except Exception as e:
+            return Response({"status":"error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 

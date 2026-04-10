@@ -201,6 +201,7 @@ class ApproveJobView(APIView):
         )
 
 
+
 class PendingJobsListView(APIView):
     permission_classes = [permissions.IsAdminUser]
 
