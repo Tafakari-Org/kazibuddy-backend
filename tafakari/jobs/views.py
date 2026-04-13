@@ -1248,7 +1248,7 @@ class EmployerUnapprovedJobsListView(views.APIView):
         if not hasattr(request.user, 'employerprofile') or request.user.id != employer_id:
             return Response({"status":"error", "message": "You are not authorized to view jobs for this employer"}, status=status.HTTP_403_FORBIDDEN) 
         try: 
-            jobs = Job.objects.filter(admin_approved=False, employer_id=employer_id)\
+            jobs = Job.objects.filter(admin_approved=False, employer=request.user.employerprofile.id)\
                 .select_related('employer', 'category')\
                 .prefetch_related('images', 'attachments')\
                 .annotate(skills_count=Count('job_skills'))\
