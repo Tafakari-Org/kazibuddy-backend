@@ -673,7 +673,8 @@ class ApprovedJobsByEmployerView(views.APIView):
                 employer_id=employer_profile_id,
                 is_assigned=False,
                 admin_approved=True
-            ).select_related('employer', 'category').prefetch_related('job_skills', 'images', 'attachments')
+            ).select_related('employer', 'category').prefetch_related('job_skills', 'images', 'attachments')\
+            .order_by('-created_at')
 
             if not jobs.exists():
                 return Response(
