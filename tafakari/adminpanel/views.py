@@ -207,6 +207,7 @@ class PendingJobsListView(APIView):
 
     def get(self, request):
         jobs = Job.objects.filter(admin_approved=False)\
+            .exclude(status=Job.Status.CANCELLED)\
             .select_related('employer', 'category')\
             .annotate(skills_count=Count('job_skills'))\
             .order_by('-created_at')

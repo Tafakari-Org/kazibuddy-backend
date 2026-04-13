@@ -1264,3 +1264,64 @@ class EmployerUnapprovedJobsListView(views.APIView):
             }) 
         except Exception as e:
             return Response({"status":"error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+
+# list jobs that are both cancelled and unapproved for a specific employer
+class CancelledUnapprovedJobsView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = CustomPagination
+
+    def get(self, request, employer_id):
+        """
+        Returns cancelled-but-never-approved jobs belonging to the requesting employer.
+        The authenticated user must own the employer profile matching employer_id.
+        """
+        if not hasattr(request.user, 'employerprofile') or request.user.id != employer_id:
+            return Response(
+                {"status": "error", "message": "You are not authorized to view jobs for this employer"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        employer_profile_id = request.user.employerprofile.id
+
+        try:
+            jobs = (
+                Job.objects
+                .annotate(
+                    total_applications=Count('jobapplication', distinct=True),
+                    skills_count=Count('job_skills', distinct=True),
+                )
+                .filter(
+                    status='cancelled',
+                    admin_approved=False,
+                    employer_id=employer_profile_id,
+                )
+                .select_related('employer', 'category')
+                .prefetch_related('images', 'attachments')
+                .only(
+                    'id', 'title', 'description', 'location_text', 'job_type',
+                    'urgency_level', 'budget_min', 'budget_max', 'payment_type',
+                    'status', 'admin_approved', 'views_count', 'applications_count',
+                    'created_at', 'expires_at',
+                    'employer__id', 'employer__company_name',
+                    'category__id', 'category__name',
+                )
+                .order_by('-created_at')
+            )
+
+            paginator = self.pagination_class()
+            paginated_jobs = paginator.paginate_queryset(jobs, request)
+            serializer = JobListSerializer(paginated_jobs, many=True)
+
+            return paginator.get_paginated_response({
+                "status": "success",
+                "message": "Cancelled unapproved jobs fetched successfully",
+                "count": jobs.count(),
+                "data": serializer.data,
+            })
+
+        except Exception as e:
+            logger.error(f"Error in CancelledUnapprovedJobsView: {e}", exc_info=True)
+            return Response(
+                {"status": "error", "message": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

@@ -31,7 +31,8 @@ from .views import (
     ListActiveJobsView,
     ApprovedJobsByEmployerView,
     AssignedJobsByEmployerView,
-    EmployerUnapprovedJobsListView
+    EmployerUnapprovedJobsListView,
+    CancelledUnapprovedJobsView
 )
 
 from django.urls import path
@@ -47,7 +48,7 @@ urlpatterns = [
     path('<uuid:job_id>/', JobDetailView.as_view(), name='job-detail'),
     path('create/', CreateJobView.as_view(), name='create-job'),
     path('update/<uuid:job_id>/', UpdateJobView.as_view(), name='update-job'),
-    path('delete/<uuid:job_id>/', DeleteJobView.as_view(), name='delete-job'),
+    path('<uuid:job_id>/', DeleteJobView.as_view(), name='delete-job'),
     path('<uuid:job_id>/skills/', JobSkillsView.as_view(), name='job-skills'),
     path('<uuid:job_id>/status/', UpdateJobStatusView.as_view(), name='update-job-status'),
     path('<uuid:job_id>/toggle-featured/', ToggleFeaturedJobView.as_view(), name='toggle-featured-job'),
@@ -70,4 +71,5 @@ urlpatterns = [
     path('approved/<uuid:employer_id>/', ApprovedJobsByEmployerView.as_view(), name='approved-jobs-by-employer'),
     path('assigned/<uuid:employer_id>/', AssignedJobsByEmployerView.as_view(), name='assigned-jobs-by-employer'),
     path('unapproved/<uuid:employer_id>/', EmployerUnapprovedJobsListView.as_view(), name='unapproved-jobs'),
+    path('cancelled/<uuid:employer_id>/', CancelledUnapprovedJobsView.as_view(), name='cancelled-unapproved-jobs'),
 ]
