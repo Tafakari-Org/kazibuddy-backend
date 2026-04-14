@@ -500,7 +500,7 @@ class DeleteJobView(views.APIView):
             job_title=job_title,
         )
  
-        return Response({"message": "Job deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"message": "Job deleted successfully"}, status=status.HTTP_200_OK)
 
 class JobSkillsView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
