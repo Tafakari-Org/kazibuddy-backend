@@ -1,0 +1,170 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You're Invited – KaziBuddy Admin</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 50px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background-color: #1a73e8;
+            color: #ffffff;
+            padding: 28px 24px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 22px;
+            letter-spacing: 0.5px;
+        }
+        .header p {
+            margin: 8px 0 0;
+            font-size: 14px;
+            opacity: 0.85;
+        }
+        .content {
+            padding: 32px 28px;
+            color: #333333;
+        }
+        .content h2 {
+            font-size: 20px;
+            margin-top: 0;
+            color: #222222;
+        }
+        .content p {
+            font-size: 15px;
+            line-height: 1.7;
+            color: #555555;
+            margin-bottom: 16px;
+        }
+        .steps {
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            padding: 18px 22px;
+            margin: 20px 0;
+        }
+        .steps ol {
+            margin: 0;
+            padding-left: 20px;
+            color: #444444;
+            font-size: 14px;
+            line-height: 1.9;
+        }
+        .cta-wrapper {
+            text-align: center;
+            margin: 28px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            background-color: #1a73e8;
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 14px 40px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            letter-spacing: 0.3px;
+        }
+        .invite-link-fallback {
+            font-size: 13px;
+            color: #777777;
+            word-break: break-all;
+            margin-top: 8px;
+        }
+        .invite-link-fallback a {
+            color: #1a73e8;
+            text-decoration: none;
+        }
+        .divider {
+            border: none;
+            border-top: 1px solid #eeeeee;
+            margin: 24px 0;
+        }
+        .notice {
+            background-color: #fff8e1;
+            border-left: 4px solid #f9a825;
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #555555;
+            margin-bottom: 18px;
+        }
+        .footer {
+            background-color: #f4f4f9;
+            text-align: center;
+            padding: 16px;
+            font-size: 13px;
+            color: #777777;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>🎉 You're Invited to KaziBuddy</h1>
+            <p>Admin Account Invitation</p>
+        </div>
+
+        <div class="content">
+            <h2>Hello {{ full_name }},</h2>
+            <p>
+                <strong>{{ invited_by }}</strong> has invited you to join
+                <strong>KaziBuddy</strong> as an <strong>Admin</strong>.
+            </p>
+            <p>
+                To get started, click the button below to set up your password and
+                activate your account. This invite link will expire in
+                <strong>{{ expires_hours }} hours</strong>.
+            </p>
+
+            <div class="steps">
+                <ol>
+                    <li>Click the <strong>"Accept Invite"</strong> button below.</li>
+                    <li>Create a strong password for your account.</li>
+                    <li>Log in and start managing the platform.</li>
+                </ol>
+            </div>
+
+            <div class="cta-wrapper">
+                <a href="{{ invite_link }}" class="cta-button">Accept Invite &amp; Set Password</a>
+            </div>
+
+            <p class="invite-link-fallback">
+                If the button above doesn't work, copy and paste this link into your browser:<br>
+                <a href="{{ invite_link }}">{{ invite_link }}</a>
+            </p>
+
+            <hr class="divider">
+
+            <div class="notice">
+                ⚠️ <strong>Important:</strong> This link can only be used once and will expire
+                in {{ expires_hours }} hours. If you didn't expect this invitation, you can
+                safely ignore this email.
+            </div>
+
+            <p>
+                If you have any questions, please reach out to your system administrator.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p>{% blocktrans trimmed %}Best regards,{% endblocktrans %}</p>
+            <p>{% blocktrans trimmed %}The KaziBuddy Team{% endblocktrans %}</p>
+        </div>
+    </div>
+</body>
+</html>

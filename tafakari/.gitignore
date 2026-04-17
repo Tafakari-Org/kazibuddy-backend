@@ -10,3 +10,4 @@ logs/
 media/
 uploads/*
 staticfiles/*
+adminpanel/ADMIN_CREATION_API.md
