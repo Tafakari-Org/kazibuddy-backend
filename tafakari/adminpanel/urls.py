@@ -16,7 +16,9 @@ from .views import (
     CreateSuperAdminView,
     AdminListView,
     AdminDetailView,
-    # ListJobApplicantsView,
+    # Invite-based flows
+    SetupAdminAccountView,
+    ResendAdminInviteView,
 )
 
 urlpatterns = [
@@ -28,15 +30,18 @@ urlpatterns = [
     path('jobs/<uuid:job_id>/approve/', ApproveJobView.as_view(), name='approve-job'),
     path('users/pending/', ListPendingUsersView.as_view(), name='list-pending-users'),
     path('applications/<uuid:application_id>/status/', UpdateJobApplicationStatusView.as_view(), name='update-application-status'),
-    # path('jobs/<uuid:job_id>/applicants/', ListJobApplicantsView.as_view(), name='list-job-applicants'),
     path('delete-users/', DeleteAllUsersView.as_view(), name='delete_all_users'),
     path('all-users/', GetAllUsersView.as_view(), name='get_all_users'),
     path('delete-user/<str:email>/', DeleteUserByEmailView.as_view(), name='delete_user_by_email'),
     path('employer-profiles/', ListEmployerProfilesView.as_view(), name='list-employer-profiles'),
 
-    # ── admin / superadmin management ──────────────────────────────────────
+    # admin / superadmin management
     path('admins/', AdminListView.as_view(), name='admin-list'),
     path('admins/create/', CreateAdminView.as_view(), name='admin-create'),
     path('admins/<uuid:admin_id>/', AdminDetailView.as_view(), name='admin-detail'),
+    path('admins/<uuid:admin_id>/resend-invite/', ResendAdminInviteView.as_view(), name='admin-resend-invite'),
     path('superadmins/create/', CreateSuperAdminView.as_view(), name='superadmin-create'),
+
+    # invite acceptance (public — no auth required)
+    path('setup-admin-account/', SetupAdminAccountView.as_view(), name='setup-admin-account'),
 ]

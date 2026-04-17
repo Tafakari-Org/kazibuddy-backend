@@ -286,7 +286,45 @@ def send_password_reset_email(user, reset_link):
         # Don't raise — a failed email must not block the request response
 
 
+def send_admin_invite_email(user, invite_link: str, invited_by=None):
+    """
+    Send an invite email to a newly created (dormant) admin account.
+
+    Uses the `email_templates/admin_invite_email.html` template rendered with:
+        full_name    – display name of the invitee
+        invite_link  – the URL the invitee clicks to set their password
+        invited_by   – display name of the super_admin who sent the invite
+        expires_hours – how long the link is valid (72 h)
+    """
+    try:
+        if not user.email:
+            logger.error(f"Invite target user {user.id} has no email — cannot send invite")
+            return
+
+        subject = "You have been invited to join KaziBuddy as an Admin"
+        context = {
+            'full_name': getattr(user, 'full_name', user.email),
+            'invite_link': invite_link,
+            'invited_by': getattr(invited_by, 'full_name', None) or (invited_by.email if invited_by else 'A super-admin'),
+            'expires_hours': 72,
+        }
+
+        try:
+            html_message = render_to_string('email_templates/admin_invite_email.html', context)
+        except Exception as template_error:
+            logger.error(f"Error rendering admin invite email template: {str(template_error)}")
+            raise Exception("Failed to render admin invite email template.")
+
+        send_email_async(subject, html_message, [user.email])
+        logger.info(f"Admin invite email queued for {user.email}")
+
+    except Exception as e:
+        logger.error(f"send_admin_invite_email error: {str(e)}")
+        # Don't raise — a failed email must not block the invite creation response
+
+
 def get_supabase_client():
+
 
     """Get Supabase client with proper error handling"""
     url = settings.SUPABASE_URL

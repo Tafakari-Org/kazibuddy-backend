@@ -5,24 +5,29 @@ from django.utils import timezone
 from django.db import transaction
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
+from django.conf import settings
 from accounts.models import CustomUser
 from jobs.models import Job
-from jobs.serializers import JobSerializer,JobListSerializer
+from jobs.serializers import JobSerializer, JobListSerializer
+from .models import AdminInvite
 from .serializers import (
     ApproveUserSerializer,
     UserStatusSerializer,
     CreateAdminSerializer,
     AdminDetailSerializer,
+    SetupAdminAccountSerializer,
 )
-from rest_framework import status
 from applications.models import JobApplication
 from applications.serializers import JobApplicationSerializer, JobApplicationListSerializer
 from rest_framework.permissions import IsAdminUser
-from utils.views import send_otp_to_email
+from utils.views import send_otp_to_email, send_admin_invite_email
 from utils.custom_error import error_response
 from utils.custom_pagination import CustomPagination
 from employers.models import EmployerProfile
 from employers.serializers import EmployerProfileSerializer
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -182,16 +187,16 @@ class ApproveJobView(APIView):
         
         job.admin_approved = False
         job.save()
-        
+
         # Notify employer of job unapproval
         if job.employer and job.employer.user:
             send_otp_to_email(
-                user=job.employer.user, 
-                otp_type='job_notification', 
+                user=job.employer.user,
+                otp_type='job_notification',
                 action_type='admin_job_unapproved',
                 job_title=job.title
             )
-        paginate_queryset
+
         return Response(
             {
                 "message": "Job unapproved successfully",
@@ -459,10 +464,30 @@ class IsSuperAdmin(permissions.BasePermission):
 # Admin / SuperAdmin creation
 # ---------------------------------------------------------------------------
 
+def _build_invite_link(token: str) -> str:
+    """
+    Build the frontend URL the invitee will click to set their password.
+    The frontend is responsible for calling POST /api/accounts/setup-admin-account/
+    with the token + new password.
+    """
+    base = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    return f"{base}/admin/setup-account?token={token}"
+
+
 class CreateAdminView(APIView):
     """
     POST /api/adminpanel/admins/create/
-    Create a new admin account. Only super_admins can call this.
+
+    Invite a new admin account. Only super_admins can call this.
+
+    Flow:
+        1. Validate email / phone uniqueness (no password accepted).
+        2. Create the user in a dormant state:
+               is_active=False, is_verified=False, email_verified=False
+        3. Generate a secure one-time invite token (expires 72 h).
+        4. Persist an AdminInvite record linking the token to the new user
+           and recording which super_admin sent the invite.
+        5. Email the invite link to the new admin asynchronously.
     """
     permission_classes = [IsSuperAdmin]
 
@@ -477,20 +502,36 @@ class CreateAdminView(APIView):
 
         data = serializer.validated_data
         with transaction.atomic():
+            # Create dormant user — no password, not yet active/verified
             user = CustomUser.objects.create_user(
                 email=data["email"],
                 phone_number=data.get("phone_number"),
-                password=data["password"],
                 full_name=data["full_name"],
                 user_type="admin",
-                is_verified=True,        # admins are trusted — no approval needed
-                email_verified=True,
+                is_active=False,
+                is_verified=False,
+                email_verified=False,
                 is_staff=True,
             )
 
+            # Generate and store invite token
+            token = AdminInvite.generate_token()
+            AdminInvite.objects.create(
+                user=user,
+                invited_by=request.user,
+                token=token,
+            )
+
+        invite_link = _build_invite_link(token)
+        send_admin_invite_email(
+            user=user,
+            invite_link=invite_link,
+            invited_by=request.user,
+        )
+
         return Response(
             {
-                "message": "Admin created successfully",
+                "message": "Admin invite sent successfully. The admin will receive an email to set up their account.",
                 "admin": AdminDetailSerializer(user).data,
             },
             status=status.HTTP_201_CREATED,
@@ -500,7 +541,9 @@ class CreateAdminView(APIView):
 class CreateSuperAdminView(APIView):
     """
     POST /api/adminpanel/superadmins/create/
-    Create a new super_admin account. Only existing super_admins can call this.
+
+    Invite a new super_admin account. Only existing super_admins can call this.
+    Same invite-based flow as CreateAdminView.
     """
     permission_classes = [IsSuperAdmin]
 
@@ -518,21 +561,178 @@ class CreateSuperAdminView(APIView):
             user = CustomUser.objects.create_user(
                 email=data["email"],
                 phone_number=data.get("phone_number"),
-                password=data["password"],
                 full_name=data["full_name"],
                 user_type="super_admin",
-                is_verified=True,
-                email_verified=True,
+                is_active=False,
+                is_verified=False,
+                email_verified=False,
                 is_staff=True,
                 is_superuser=True,
             )
 
+            token = AdminInvite.generate_token()
+            AdminInvite.objects.create(
+                user=user,
+                invited_by=request.user,
+                token=token,
+            )
+
+        invite_link = _build_invite_link(token)
+        send_admin_invite_email(
+            user=user,
+            invite_link=invite_link,
+            invited_by=request.user,
+        )
+
         return Response(
             {
-                "message": "Super admin created successfully",
+                "message": "Super-admin invite sent successfully.",
                 "super_admin": AdminDetailSerializer(user).data,
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+class SetupAdminAccountView(APIView):
+    """
+    POST /api/accounts/setup-admin-account/
+
+    Public endpoint — called by the invitee (no authentication required).
+
+    Accepts:
+        token          — the token embedded in the invite link
+        password       — the desired password
+        confirm_password — must match password
+
+    On success:
+        * Sets the password.
+        * Activates the account (is_active=True, is_verified=True, email_verified=True).
+        * Marks the invite token as used.
+        * All inside a single atomic transaction + SELECT FOR UPDATE to
+          prevent concurrent redemption of the same token.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = SetupAdminAccountSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response(
+                message="Validation failed",
+                errors=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        token_value = serializer.validated_data["token"]
+        password = serializer.validated_data["password"]
+
+        try:
+            with transaction.atomic():
+                # Lock the invite row to prevent concurrent redemption
+                invite = (
+                    AdminInvite.objects
+                    .select_for_update()
+                    .select_related("user")
+                    .get(token=token_value)
+                )
+
+                if invite.used:
+                    return error_response(
+                        message="This invite link has already been used.",
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                if invite.is_expired:
+                    return error_response(
+                        message="This invite link has expired. Please ask a super-admin to resend it.",
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                user = invite.user
+
+                # Set password and activate the account
+                user.set_password(password)
+                user.is_active = True
+                user.is_verified = True
+                user.email_verified = True
+                user.updated_at = timezone.now()
+                user.save()
+
+                # Consume the token
+                invite.used = True
+                invite.used_at = timezone.now()
+                invite.save()
+
+        except AdminInvite.DoesNotExist:
+            return error_response(
+                message="Invalid invite token.",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        logger.info(
+            "Admin account activated: user=%s invite=%s",
+            user.email, invite.id,
+        )
+
+        return Response(
+            {
+                "message": "Account set up successfully. You can now log in.",
+                "admin": AdminDetailSerializer(user).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ResendAdminInviteView(APIView):
+    """
+    POST /api/adminpanel/admins/<uuid:admin_id>/resend-invite/
+
+    Only super_admins can call this.
+
+    Invalidates any existing (unused) invite for the user and issues a fresh one.
+    Useful when the previous token expired or the email was lost.
+    """
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request, admin_id):
+        try:
+            user = CustomUser.objects.get(
+                id=admin_id, user_type__in=["admin", "super_admin"]
+            )
+        except CustomUser.DoesNotExist:
+            return error_response(
+                message="Admin not found.",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Already active — no need to resend
+        if user.is_active and user.is_verified:
+            return error_response(
+                message="This admin account is already active.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            # Invalidate any outstanding tokens for this user by deleting them;
+            # OneToOneField means at most one exists, but use filter for safety.
+            AdminInvite.objects.filter(user=user, used=False).delete()
+
+            token = AdminInvite.generate_token()
+            AdminInvite.objects.create(
+                user=user,
+                invited_by=request.user,
+                token=token,
+            )
+
+        invite_link = _build_invite_link(token)
+        send_admin_invite_email(
+            user=user,
+            invite_link=invite_link,
+            invited_by=request.user,
+        )
+
+        return Response(
+            {"message": f"Invite resent to {user.email}."},
+            status=status.HTTP_200_OK,
         )
 
 
