@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from rest_framework import serializers
 from django.db import IntegrityError
 from .custom_error import error_response
+from utils.custom_pagination import CustomPagination
 
 class CreateWorkerProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -94,6 +95,7 @@ class UpdateWorkerProfileView(APIView):
 
 
 class ListWorkerProfilesView(APIView):
+    pagination_class = CustomPagination
     def get(self, request):
         try:
             worker_profiles = WorkerProfile.objects.all()
@@ -123,9 +125,14 @@ class ListWorkerProfilesView(APIView):
                 worker_profiles = worker_profiles.filter(verification_status=status_filter)
             if min_completion:
                 worker_profiles = worker_profiles.filter(profile_completion_percentage__gte=int(min_completion))
-
-            serializer = WorkerProfileSerializer(worker_profiles, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+            paginator = self.pagination_class()
+            paginated_profiles = paginator.paginate_queryset(worker_profiles, request)
+            serializer = WorkerProfileSerializer(paginated_profiles, many=True)
+            return paginator.get_paginated_response({
+                "message": "Worker profiles retrieved successfully",
+                "data": serializer.data
+            })
         except Exception as e:
             return error_response(
                 message="An error occured when listing profiles",

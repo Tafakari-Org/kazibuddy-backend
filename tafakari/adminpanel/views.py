@@ -258,13 +258,10 @@ class ListPendingUsersView(APIView):
                 for user in paginated_users
             ]
 
-            return Response(
-                {
-                    'message': 'Pending users retrieved successfully',
-                    'data': user_data,
-                },
-                status=status.HTTP_200_OK
-            )
+            return paginator.get_paginated_response({
+                "message": "Pending users retrieved successfully",
+                "data": user_data
+            })
 
         except Exception as e:
             return Response(
@@ -417,30 +414,39 @@ class ListEmployerProfilesView(APIView):
     pagination_class = CustomPagination
 
     def get(self, request):
-        company_name = request.GET.get("company_name")
-        location = request.GET.get("location")
-        industry = request.GET.get("industry")
-        business_type = request.GET.get("business_type")
+        try:
+            company_name = request.GET.get("company_name")
+            location = request.GET.get("location")
+            industry = request.GET.get("industry")
+            business_type = request.GET.get("business_type")
 
-        employers = EmployerProfile.objects.all()
+            employers = EmployerProfile.objects.all().select_related("user")
 
-        if company_name:
-            employers = employers.filter(company_name__icontains=company_name)
-        if location:
-            employers = employers.filter(location__icontains=location)
-        if industry:
-            employers = employers.filter(industry__icontains=industry)
-        if business_type:
-            employers = employers.filter(business_type=business_type)
+            if company_name:
+                employers = employers.filter(company_name__icontains=company_name)
+            if location:
+                employers = employers.filter(location__icontains=location)
+            if industry:
+                employers = employers.filter(industry__icontains=industry)
+            if business_type:
+                employers = employers.filter(business_type=business_type)
 
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(employers, request, view=self)
-        if page is not None:
-            serializer = EmployerProfileSerializer(page, many=True)
-            return paginator.get_paginated_response(serializer.data)
-
-        serializer = EmployerProfileSerializer(employers, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            paginator = self.pagination_class()
+            paginated_employers = paginator.paginate_queryset(employers, request)
+           
+            serializer = EmployerProfileSerializer(paginated_employers, many=True)
+            return paginator.get_paginated_response({
+                "message": "Employer profiles retrieved successfully",
+                "data": serializer.data
+            })
+            
+        
+        except Exception as e:
+            return Response({
+                "error":true,
+                "message":str(e),
+                "status":status.HTTP_500_INTERNAL_SERVER_ERROR
+            })
 
 
 # ---------------------------------------------------------------------------
