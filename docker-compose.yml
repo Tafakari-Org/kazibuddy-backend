@@ -1,7 +1,18 @@
-version: '3.8'
-
 services:
-  # Django Web Application
+  db:
+    image: postgres:17
+    container_name: kazi-buddy-backend-db
+    restart: always
+    environment:
+      POSTGRES_DB: tafakaridb
+    env_file:
+      - ./tafakari/.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - tafakari_db:/var/lib/postgresql/data
+    networks:
+      - kazi-network
   web:
     build:
       context: .
@@ -16,6 +27,8 @@ services:
       - "8000:8000"
     env_file:
       - ./tafakari/.env
+    depends_on:
+      - db
     networks:
       - kazi-network
     restart: unless-stopped
@@ -23,6 +36,7 @@ services:
 volumes:
   static_volume:
   uploads_volume:
+  tafakari_db:
 
 networks:
   kazi-network:

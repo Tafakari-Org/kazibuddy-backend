@@ -910,4 +910,63 @@ class AdminDetailView(APIView):
 #             "data": serializer.data,
 #         })
 
+#change user role view
+class ChangeUserRoleView(APIView):
+    permission_classes = [permissions.IsAdminUser]
 
+    def patch(self, request, user_id):
+        """
+        Updates the role (user_type) of a specific user.
+        Only accessible by super_admins.
+        """
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return error_response(
+                message="User not found.",
+                errors={"error": f"No user found with ID '{user_id}'"},
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        # Ensure the request is from a super_admin
+        if request.user.user_type != "super_admin" or request.user.user_type != "admin":
+            return error_response(
+                message="Only a super_admin or admin can perform this action.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        
+        
+
+        new_role = request.data.get("user_type")
+        valid_roles = ["super_admin", "admin", "employer", "worker","both"]
+
+        if not new_role or new_role not in valid_roles:
+            return error_response(
+                message="Invalid or missing user_type.",
+                errors={"error": f"user_type must be one of {valid_roles}"},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.user_type = new_role
+        user.save()
+
+        # Notify user about role change
+        send_otp_to_email(
+            user=user,
+            otp_type='admin_notification',
+            action_type='role_changed',
+            new_role=new_role
+        )
+
+        return Response(
+            {
+                "message": f"User '{user.email}' role successfully changed to '{new_role}'.",
+                "user": {
+                    "user_id": str(user.id),
+                    "email": user.email,
+                    "user_type": user.user_type,
+                    "full_name": user.full_name
+                }
+            },
+            status=status.HTTP_200_OK,
+        )
