@@ -25,9 +25,11 @@ fi
 echo "Setting upload directory permissions..."
 mkdir -p $UPLOADS_DIR/images
 mkdir -p $UPLOADS_DIR/documents
+mkdir -p $PROJECT_DIR/tafakari/logs
 chown -R 1000:1000 $UPLOADS_DIR
 chmod -R 755 $UPLOADS_DIR
-
+chown -R 1000:1000 $PROJECT_DIR/tafakari/logs
+chmod -R 755 $PROJECT_DIR/tafakari/logs
 # Build and restart containers
 echo "Building and restarting containers..."
 docker compose -f docker-compose.prod.yml up -d --build
