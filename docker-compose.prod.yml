@@ -36,6 +36,7 @@ services:
 
 volumes:
   static_volume:
+  tafakari_db:
 
   
 
