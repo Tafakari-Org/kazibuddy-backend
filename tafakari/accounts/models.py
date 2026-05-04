@@ -71,7 +71,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     user_type = models.CharField(max_length=50, choices=USER_TYPES)
     full_name = models.CharField(max_length=255)
     profile_photo_url = models.URLField(max_length=500, null=True, blank=True)
-
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
