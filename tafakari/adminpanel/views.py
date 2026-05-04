@@ -551,7 +551,7 @@ class CreateSuperAdminView(APIView):
     Invite a new super_admin account. Only existing super_admins can call this.
     Same invite-based flow as CreateAdminView.
     """
-    # permission_classes = [IsSuperAdmin]
+    permission_classes = [IsSuperAdmin]
 
     def post(self, request):
         serializer = CreateAdminSerializer(data=request.data)
@@ -569,26 +569,26 @@ class CreateSuperAdminView(APIView):
                 phone_number=data.get("phone_number"),
                 full_name=data["full_name"],
                 user_type="super_admin",
-                is_active=True,
-                is_verified=True,
-                email_verified=True,
+                is_active=False,
+                is_verified=False,
+                email_verified=False,
                 is_staff=True,
                 is_superuser=True,
             )
 
-        #     token = AdminInvite.generate_token()
-        #     AdminInvite.objects.create(
-        #         user=user,
-        #         invited_by=request.user,
-        #         token=token,
-        #     )
+            token = AdminInvite.generate_token()
+            AdminInvite.objects.create(
+                user=user,
+                invited_by=request.user,
+                token=token,
+            )
 
-        # invite_link = _build_invite_link(token)
-        # send_admin_invite_email(
-        #     user=user,
-        #     invite_link=invite_link,
-        #     invited_by=request.user,
-        # )
+        invite_link = _build_invite_link(token)
+        send_admin_invite_email(
+            user=user,
+            invite_link=invite_link,
+            invited_by=request.user,
+        )
 
         return Response(
             {
