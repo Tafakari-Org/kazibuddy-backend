@@ -34,6 +34,11 @@ class CreateAdminSerializer(serializers.Serializer):
     phone_number = serializers.CharField(
         max_length=20, required=False, allow_blank=True, default=None
     )
+    password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+        style={'input_type': 'password'},
+    )
 
     def validate_email(self, value):
         if CustomUser.objects.filter(email=value).exists():
