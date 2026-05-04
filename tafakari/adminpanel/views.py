@@ -576,19 +576,19 @@ class CreateSuperAdminView(APIView):
                 is_superuser=True,
             )
 
-            token = AdminInvite.generate_token()
-            AdminInvite.objects.create(
-                user=user,
-                invited_by=request.user,
-                token=token,
-            )
+        #     token = AdminInvite.generate_token()
+        #     AdminInvite.objects.create(
+        #         user=user,
+        #         invited_by=request.user,
+        #         token=token,
+        #     )
 
-        invite_link = _build_invite_link(token)
-        send_admin_invite_email(
-            user=user,
-            invite_link=invite_link,
-            invited_by=request.user,
-        )
+        # invite_link = _build_invite_link(token)
+        # send_admin_invite_email(
+        #     user=user,
+        #     invite_link=invite_link,
+        #     invited_by=request.user,
+        # )
 
         return Response(
             {
