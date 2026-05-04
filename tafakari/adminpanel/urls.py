@@ -19,6 +19,8 @@ from .views import (
     # Invite-based flows
     SetupAdminAccountView,
     ResendAdminInviteView,
+
+    ChangeUserRoleView
 )
 
 urlpatterns = [
@@ -44,4 +46,6 @@ urlpatterns = [
 
     # invite acceptance (public — no auth required)
     path('setup-admin-account/', SetupAdminAccountView.as_view(), name='setup-admin-account'),
+
+    path('users/<uuid:user_id>/change-role/', ChangeUserRoleView.as_view(), name='change-user-role'),
 ]
