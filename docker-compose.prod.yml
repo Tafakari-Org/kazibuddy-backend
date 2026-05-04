@@ -1,4 +1,19 @@
 services:
+  #Database
+  db:
+    image: postgres:17
+    container_name: kazi-buddy-backend-db
+    restart: always
+    environment:
+      POSTGRES_DB: tafakaridb
+    env_file:
+      - ./tafakari/.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - tafakari_db:/var/lib/postgresql/data
+    networks:
+      - kazi-network-prod
   # Django Web Application
   web:
     build:
