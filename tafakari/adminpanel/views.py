@@ -574,9 +574,9 @@ class CreateSuperAdminView(APIView):
                 email_verified=False,
                 is_staff=True,
                 is_superuser=True,
+                password=data["password"],
             )
-            user.set_password(data['password'])
-            user.save()
+            
 
         #     token = AdminInvite.generate_token()
         #     AdminInvite.objects.create(
