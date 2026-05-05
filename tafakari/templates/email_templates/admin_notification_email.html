@@ -1,122 +1,482 @@
 {% load static %}
 {% load i18n %}
-
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Account Notification - {{ action_type }}</title>
+    <title>KaziBuddy • Account Notification</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f8f9fa;
+        * {
             margin: 0;
             padding: 0;
-            line-height: 1.6;
+            box-sizing: border-box;
         }
 
-        .email-container {
-            max-width: 600px;
-            margin: 40px auto;
-            background-color: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
-            overflow: hidden;
-            border: 1px solid #eef2f7;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            color: #ffffff;
-            padding: 30px 20px;
-            text-align: center;
-        }
-
-        .header h1 {
+        body {
+            background-color: #EFE5E8;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            padding: 48px 20px;
             margin: 0;
-            font-size: 24px;
+        }
+
+        .email-wrapper {
+            max-width: 620px;
+            margin: 0 auto;
+            background: #FFFFFF;
+            border-radius: 3px;
+            box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(74, 0, 16, 0.06);
+            overflow: hidden;
+            border: 1px solid #E0C9CF;
+        }
+
+        .maroon-top-bar {
+            height: 5px;
+            background: linear-gradient(90deg, #4A0010 0%, #6B0020 50%, #A52840 100%);
+        }
+
+        /* ---------- HEADER ---------- */
+        .header-official {
+            background: linear-gradient(115deg, #4A0010 0%, #6B0020 70%, #7F1230 100%);
+            padding: 34px 36px 28px 36px;
+        }
+
+        .brand-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .brand-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-mark {
+            width: 40px;
+            height: 40px;
+            background: #FFFFFF;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Playfair Display', serif;
+            font-size: 20px;
+            font-weight: 800;
+            color: #6B0020;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        }
+
+        .brand-name {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: -0.2px;
+            color: #FFFFFF;
+            border-left: 2px solid rgba(201, 168, 76, 0.5);
+            padding-left: 12px;
+        }
+
+        .official-tag {
+            background: rgba(255,255,255,0.12);
+            padding: 5px 12px;
+            border-radius: 3px;
+            font-size: 11px;
             font-weight: 600;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #F5E6EA;
+            border: 0.5px solid rgba(255,255,255,0.2);
+        }
+
+        .title-block h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: #FFFFFF;
+            letter-spacing: -0.2px;
+            line-height: 1.25;
+            margin-bottom: 8px;
+        }
+
+        .title-sub {
+            font-size: 12px;
+            font-weight: 500;
+            color: rgba(255,255,245,0.7);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-top: 1px solid rgba(201,168,76,0.35);
+            display: inline-block;
+            padding-top: 8px;
+        }
+
+        /* ---------- CONTENT ---------- */
+        .content-main {
+            padding: 36px 36px 28px 36px;
+            background: #FFFFFF;
+        }
+
+        .greeting {
+            font-size: 20px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 18px;
+            font-family: 'Inter', sans-serif;
+            border-left: 3px solid #6B0020;
+            padding-left: 14px;
+        }
+
+        .notification-message {
+            font-size: 15px;
+            line-height: 1.65;
+            color: #1E1A1C;
+            margin-bottom: 28px;
+            font-weight: 450;
+        }
+
+        .notification-message strong {
+            color: #6B0020;
+            font-weight: 700;
+        }
+
+        /* ---------- STATUS BANNER ---------- */
+        /* approved */
+        .status-banner {
+            border: 1px solid #DABBC3;
+            border-left: 4px solid #8B1A35;
+            border-radius: 3px;
+            padding: 14px 20px;
+            margin-bottom: 28px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-banner.approved {
+            background: #F0FAF1;
+            border-color: #A8D5AC;
+            border-left-color: #2E7D32;
+        }
+
+        .status-banner.deactivated {
+            background: #FFF8F0;
+            border-color: #E8D0B0;
+            border-left-color: #C47A00;
+        }
+
+        .status-banner.deleted {
+            background: #FDF2F4;
+            border-color: #DABBC3;
+            border-left-color: #8B1A35;
+        }
+
+        .status-banner.generic {
+            background: #F5F5FF;
+            border-color: #C8C8E8;
+            border-left-color: #4A4A8B;
+        }
+
+        .status-banner-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .status-banner-text {
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+        }
+
+        .approved .status-banner-text  { color: #1B5E20; }
+        .deactivated .status-banner-text { color: #7A4500; }
+        .deleted .status-banner-text  { color: #6B0020; }
+        .generic .status-banner-text  { color: #2A2A6B; }
+
+        /* ---------- STATUS BADGE ---------- */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
-        .content {
-            padding: 40px 30px;
-            color: #444444;
+        .status-badge::before {
+            content: "●";
+            font-size: 8px;
         }
 
-        .content h2 {
-            font-size: 20px;
-            color: #2c3e50;
-            margin-top: 0;
-            margin-bottom: 20px;
+        .badge-approved  { background: #E8F5E9; color: #2E7D32; border: 1px solid #A8D5AC; }
+        .badge-approved::before { color: #2E7D32; }
+
+        .badge-deactivated { background: #FFF3E0; color: #E65100; border: 1px solid #FFCC80; }
+        .badge-deactivated::before { color: #E65100; }
+
+        .badge-deleted  { background: #F7EFF1; color: #6B0020; border: 1px solid #DABBC3; }
+        .badge-deleted::before  { color: #8B1A35; }
+
+        .badge-generic  { background: #EEF2FF; color: #3730A3; border: 1px solid #C7D2FE; }
+        .badge-generic::before  { color: #3730A3; }
+
+        /* ---------- DETAIL CARD ---------- */
+        .detail-card {
+            background: #FDF8F9;
+            border-left: 4px solid #8B1A35;
+            border-radius: 3px;
+            padding: 20px 24px;
+            margin: 0 0 28px 0;
+            box-shadow: 0 1px 2px rgba(74, 0, 16, 0.04);
         }
 
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 600;
+        .card-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
             text-transform: uppercase;
-            background-color: #e8f5e9;
-            color: #2e7d32;
+            color: #7A5C66;
+            margin-bottom: 14px;
         }
 
-        .footer {
-            background-color: #f8f9fa;
-            text-align: center;
-            padding: 25px;
-            font-size: 13px;
-            color: #95a5a6;
-            border-top: 1px solid #f1f4f8;
+        .detail-line {
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+            padding: 8px 0;
+            border-bottom: 1px solid #EADCE1;
         }
 
-        .button {
-            display: inline-block;
-            padding: 12px 28px;
-            background-color: #2c3e50;
-            color: #ffffff;
-            text-decoration: none;
-            border-radius: 6px;
+        .detail-line:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .detail-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            color: #8F6F7A;
+            min-width: 80px;
+            flex-shrink: 0;
+        }
+
+        .detail-value {
+            font-size: 14px;
             font-weight: 600;
-            margin-top: 20px;
-            transition: background-color 0.3s ease;
+            color: #000000;
+        }
+
+        /* ---------- BUTTON ---------- */
+        .button-container {
+            margin: 28px 0 8px;
+        }
+
+        .btn-primary {
+            display: inline-block;
+            background: #6B0020;
+            color: #FFFFFF;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 12px 28px;
+            border-radius: 3px;
+            border: 1px solid #6B0020;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* hide login button for deleted accounts */
+        .btn-hidden {
+            display: none;
+        }
+
+        .soft-divider {
+            height: 1px;
+            background: #E8D8DE;
+            margin: 28px 0 20px;
+        }
+
+        /* ---------- FOOTER ---------- */
+        .footer-official {
+            background: #FDF8F9;
+            border-top: 1px solid #E2D0D6;
+            padding: 24px 36px 28px;
+        }
+
+        .footer-brand {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 14px;
+            color: #6B0020;
+            margin-bottom: 8px;
+            letter-spacing: 0.3px;
+        }
+
+        .footer-text {
+            font-size: 12px;
+            color: #6A555E;
+            margin: 5px 0;
+            line-height: 1.5;
+        }
+
+        .footer-legal {
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px solid #EADCE1;
+            font-size: 11px;
+            color: #A4808C;
+            letter-spacing: 0.2px;
+        }
+
+        /* ---------- RESPONSIVE ---------- */
+        @media (max-width: 520px) {
+            .content-main, .header-official, .footer-official {
+                padding-left: 24px;
+                padding-right: 24px;
+            }
+            .detail-line {
+                flex-direction: column;
+                gap: 4px;
+                align-items: flex-start;
+            }
+            .detail-label {
+                min-width: auto;
+            }
+            .brand-row {
+                gap: 12px;
+            }
         }
     </style>
 </head>
-
 <body>
-    <div class="email-container">
-        <div class="header">
-            <h1>Account Notification</h1>
-        </div>
-        <div class="content">
-            <h2>Hello {{ full_name }},</h2>
+    <div class="email-wrapper">
+        <div class="maroon-top-bar"></div>
 
+        <!-- HEADER -->
+        <div class="header-official">
+            <div class="brand-row">
+                <div class="brand-left">
+                    <div class="brand-mark">K</div>
+                    <div class="brand-name">KaziBuddy</div>
+                </div>
+                <div class="official-tag">Account Notification</div>
+            </div>
+            <div class="title-block">
+                {% if action_type == 'approved' %}
+                    <h1>Account Approved</h1>
+                    <div class="title-sub">Welcome aboard · You're all set</div>
+                {% elif action_type == 'deactivated' %}
+                    <h1>Account Deactivated</h1>
+                    <div class="title-sub">Administrative action · See details below</div>
+                {% elif action_type == 'deleted' %}
+                    <h1>Account Removed</h1>
+                    <div class="title-sub">Administrative action · Account closed</div>
+                {% else %}
+                    <h1>Account Update</h1>
+                    <div class="title-sub">A change has been made to your account</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="content-main">
+
+            <div class="greeting">Hello, {{ full_name }}</div>
+
+            <!-- STATUS BANNER -->
             {% if action_type == 'approved' %}
-            <p>Congratulations! Your account on KaziBuddy has been successfully approved by the administrator.</p>
-            <p>You can now log in and take full advantage of our platform.</p>
+            <div class="status-banner approved">
+                <div class="status-banner-icon">✅</div>
+                <div class="status-banner-text">Your account has been approved by an administrator.</div>
+            </div>
             {% elif action_type == 'deactivated' %}
-            <p>Your account on KaziBuddy has been deactivated by the administrator.</p>
-            <p>If you believe this is an error or have any questions, please contact our support team.</p>
+            <div class="status-banner deactivated">
+                <div class="status-banner-icon">⚠️</div>
+                <div class="status-banner-text">Your account has been deactivated by an administrator.</div>
+            </div>
             {% elif action_type == 'deleted' %}
-            <p>Your account on KaziBuddy has been removed by the administrator following your request or an
-                administrative action.</p>
+            <div class="status-banner deleted">
+                <div class="status-banner-icon">🗑️</div>
+                <div class="status-banner-text">Your account has been permanently removed.</div>
+            </div>
             {% else %}
-            <p>There has been an update regarding your account on KaziBuddy.</p>
+            <div class="status-banner generic">
+                <div class="status-banner-icon">📋</div>
+                <div class="status-banner-text">There has been an update regarding your account.</div>
+            </div>
             {% endif %}
 
-            <p>For more information or further assistance, feel free to reach out to our team.</p>
+            <!-- MESSAGE -->
+            <div class="notification-message">
+                {% if action_type == 'approved' %}
+                    Congratulations! Your <strong>KaziBuddy</strong> account has been successfully approved. You now have full access to the platform — log in to get started and explore all available opportunities.
+                {% elif action_type == 'deactivated' %}
+                    Your <strong>KaziBuddy</strong> account has been deactivated by an administrator. If you believe this is an error or have any questions, please do not hesitate to contact our support team during business hours.
+                {% elif action_type == 'deleted' %}
+                    Your <strong>KaziBuddy</strong> account has been permanently removed following your request or an administrative decision. If you have concerns about this action, please reach out to our support team.
+                {% else %}
+                    There has been a recent update to your <strong>KaziBuddy</strong> account. For more details or further assistance, please feel free to contact our team.
+                {% endif %}
+            </div>
 
-            <a href="https://kazibuddy.tech/auth/login" class="button">Log In to Your Account</a>
+            <!-- DETAIL CARD -->
+            <div class="detail-card">
+                <div class="card-label">Account Details</div>
+                <div class="detail-line">
+                    <span class="detail-label">Name</span>
+                    <span class="detail-value">{{ full_name }}</span>
+                </div>
+                <div class="detail-line">
+                    <span class="detail-label">Status</span>
+                    <span class="detail-value">
+                        {% if action_type == 'approved' %}
+                            <span class="status-badge badge-approved">Approved</span>
+                        {% elif action_type == 'deactivated' %}
+                            <span class="status-badge badge-deactivated">Deactivated</span>
+                        {% elif action_type == 'deleted' %}
+                            <span class="status-badge badge-deleted">Removed</span>
+                        {% else %}
+                            <span class="status-badge badge-generic">Updated</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <!-- CTA BUTTON (hidden for deleted accounts) -->
+            {% if action_type != 'deleted' %}
+            <div class="button-container">
+                <a href="https://kazibuddy.tech/auth/login" class="btn-primary">Log In to Your Account</a>
+            </div>
+            {% endif %}
+
+            <div class="soft-divider"></div>
+            <div style="font-size: 12px; color: #6F4F5A; margin-top: 6px;">
+                <span>🔒 Secure platform · This message was generated automatically.</span>
+            </div>
         </div>
-        <div class="footer">
-            <p>&copy; 2026 Tafakari Team. All rights reserved.</p>
-            <p>You received this email because you are a registered user on KaziBuddy.</p>
+
+        <!-- FOOTER -->
+        <div class="footer-official">
+            <div class="footer-brand">KaziBuddy · Powered by Tafakari Team</div>
+            <div class="footer-text">This is an automated transactional email from KaziBuddy, the trusted job ecosystem.</div>
+            <div class="footer-text">You received this notification because you are a registered user on our platform.</div>
+            <div class="footer-legal">
+                © 2026 Tafakari Team. All rights reserved. &nbsp;|&nbsp;
+                <a href="https://kazibuddy.tech" style="color: #8B1A35; text-decoration: none;">Privacy &amp; Terms</a>
+                &nbsp;|&nbsp; kazibuddy.tech
+            </div>
         </div>
     </div>
 </body>
-
 </html>
