@@ -291,10 +291,10 @@ def send_admin_invite_email(user, invite_link: str, invited_by=None):
     Send an invite email to a newly created (dormant) admin account.
 
     Uses the `email_templates/admin_invite_email.html` template rendered with:
-        full_name    – display name of the invitee
-        invite_link  – the URL the invitee clicks to set their password
-        invited_by   – display name of the super_admin who sent the invite
-        expires_hours – how long the link is valid (72 h)
+        full_name       display name of the invitee
+        invite_link     the URL the invitee clicks to set their password
+        invited_by      display name of the super_admin who sent the invite
+        expires_hours   how long the link is valid (72 h)
     """
     try:
         if not user.email:
