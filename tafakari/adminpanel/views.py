@@ -477,6 +477,8 @@ def _build_invite_link(token: str) -> str:
     with the token + new password.
     """
     base = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    if len(base) >1:
+        base = base[1]
     return f"{base}/admin/setup-account?token={token}"
 
 
