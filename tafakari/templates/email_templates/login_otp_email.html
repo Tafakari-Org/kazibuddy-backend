@@ -1,93 +1,430 @@
 {% load static %}
 {% load i18n %}
-
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ otp_type }} Verification</title>
+    <title>KaziBuddy • Login Notification</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
         }
 
-        .email-container {
-            max-width: 600px;
-            margin: 50px auto;
-            background-color: #ffffff;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        body {
+            background-color: #EFE5E8;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            padding: 48px 20px;
+            margin: 0;
+        }
+
+        .email-wrapper {
+            max-width: 620px;
+            margin: 0 auto;
+            background: #FFFFFF;
+            border-radius: 3px;
+            box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(74, 0, 16, 0.06);
             overflow: hidden;
+            border: 1px solid #E0C9CF;
         }
 
-        .header {
-            background-color: #4CAF50;
-            color: #ffffff;
-            padding: 20px;
-            text-align: center;
+        .maroon-top-bar {
+            height: 5px;
+            background: linear-gradient(90deg, #4A0010 0%, #6B0020 50%, #A52840 100%);
         }
 
-        .content {
-            padding: 20px;
-            color: #333333;
+        /* ---------- HEADER ---------- */
+        .header-official {
+            background: linear-gradient(115deg, #4A0010 0%, #6B0020 70%, #7F1230 100%);
+            padding: 34px 36px 28px 36px;
         }
 
-        .content h1 {
-            font-size: 24px;
-            margin-bottom: 10px;
+        .brand-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
         }
 
-        .content p {
-            font-size: 16px;
-            margin-bottom: 20px;
+        .brand-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        .otp-code {
+        .brand-mark {
+            width: 40px;
+            height: 40px;
+            background: #FFFFFF;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Playfair Display', serif;
             font-size: 20px;
-            font-weight: bold;
-            color: #4CAF50;
-            text-align: center;
-            margin: 20px 0;
+            font-weight: 800;
+            color: #6B0020;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
         }
 
-        .footer {
-            background-color: #f4f4f9;
-            text-align: center;
-            padding: 10px;
+        .brand-name {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: -0.2px;
+            color: #FFFFFF;
+            border-left: 2px solid rgba(201, 168, 76, 0.5);
+            padding-left: 12px;
+        }
+
+        .official-tag {
+            background: rgba(255,255,255,0.12);
+            padding: 5px 12px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #F5E6EA;
+            border: 0.5px solid rgba(255,255,255,0.2);
+        }
+
+        .title-block h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: #FFFFFF;
+            letter-spacing: -0.2px;
+            line-height: 1.25;
+            margin-bottom: 8px;
+        }
+
+        .title-sub {
+            font-size: 12px;
+            font-weight: 500;
+            color: rgba(255,255,245,0.7);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-top: 1px solid rgba(201,168,76,0.35);
+            display: inline-block;
+            padding-top: 8px;
+        }
+
+        /* ---------- CONTENT ---------- */
+        .content-main {
+            padding: 36px 36px 28px 36px;
+            background: #FFFFFF;
+        }
+
+        .greeting {
+            font-size: 20px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 18px;
+            font-family: 'Inter', sans-serif;
+            border-left: 3px solid #6B0020;
+            padding-left: 14px;
+        }
+
+        .notification-message {
+            font-size: 15px;
+            line-height: 1.65;
+            color: #1E1A1C;
+            margin-bottom: 28px;
+            font-weight: 450;
+        }
+
+        .notification-message strong {
+            color: #6B0020;
+            font-weight: 700;
+        }
+
+        /* ---------- STATUS BANNER ---------- */
+        .status-banner {
+            background: #F0FAF1;
+            border: 1px solid #A8D5AC;
+            border-left: 4px solid #2E7D32;
+            border-radius: 3px;
+            padding: 14px 20px;
+            margin-bottom: 28px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-banner-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .status-banner-text {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1B5E20;
+            letter-spacing: 0.2px;
+        }
+
+        /* ---------- ALERT BLOCK ---------- */
+        .alert-block {
+            background: #FDF2F4;
+            border: 1px solid #DABBC3;
+            border-left: 4px solid #8B1A35;
+            border-radius: 3px;
+            padding: 16px 20px;
+            margin-bottom: 28px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .alert-block-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .alert-block-body {
+            font-size: 13px;
+            line-height: 1.6;
+            color: #4A1020;
+        }
+
+        .alert-block-body strong {
+            font-weight: 700;
+            color: #6B0020;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        /* ---------- DETAIL CARD ---------- */
+        .detail-card {
+            background: #FDF8F9;
+            border-left: 4px solid #8B1A35;
+            border-radius: 3px;
+            padding: 20px 24px;
+            margin: 0 0 28px 0;
+            box-shadow: 0 1px 2px rgba(74, 0, 16, 0.04);
+        }
+
+        .card-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: #7A5C66;
+            margin-bottom: 14px;
+        }
+
+        .detail-line {
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+            padding: 8px 0;
+            border-bottom: 1px solid #EADCE1;
+        }
+
+        .detail-line:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .detail-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            color: #8F6F7A;
+            min-width: 80px;
+            flex-shrink: 0;
+        }
+
+        .detail-value {
             font-size: 14px;
-            color: #777777;
+            font-weight: 600;
+            color: #000000;
         }
 
-        a {
-            color: #4CAF50;
-            text-decoration: none;
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #E8F5E9;
+            padding: 4px 12px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #2E7D32;
+            border: 1px solid #A8D5AC;
+        }
+
+        .status-badge::before {
+            content: "●";
+            font-size: 8px;
+            color: #2E7D32;
+        }
+
+        /* ---------- SUPPORT LINK ---------- */
+        .support-message {
+            font-size: 13px;
+            color: #5C4850;
+            margin: 24px 0 0 0;
+            line-height: 1.55;
+            border-top: 1px solid #EFE2E6;
+            padding-top: 22px;
+        }
+
+        .support-message a {
+            color: #8B1A35;
+            text-decoration: underline;
+            font-weight: 600;
+        }
+
+        .soft-divider {
+            height: 1px;
+            background: #E8D8DE;
+            margin: 28px 0 20px;
+        }
+
+        /* ---------- FOOTER ---------- */
+        .footer-official {
+            background: #FDF8F9;
+            border-top: 1px solid #E2D0D6;
+            padding: 24px 36px 28px;
+        }
+
+        .footer-brand {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 14px;
+            color: #6B0020;
+            margin-bottom: 8px;
+            letter-spacing: 0.3px;
+        }
+
+        .footer-text {
+            font-size: 12px;
+            color: #6A555E;
+            margin: 5px 0;
+            line-height: 1.5;
+        }
+
+        .footer-legal {
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px solid #EADCE1;
+            font-size: 11px;
+            color: #A4808C;
+            letter-spacing: 0.2px;
+        }
+
+        /* ---------- RESPONSIVE ---------- */
+        @media (max-width: 520px) {
+            .content-main, .header-official, .footer-official {
+                padding-left: 24px;
+                padding-right: 24px;
+            }
+            .detail-line {
+                flex-direction: column;
+                gap: 4px;
+                align-items: flex-start;
+            }
+            .detail-label {
+                min-width: auto;
+            }
+            .brand-row {
+                gap: 12px;
+            }
         }
     </style>
 </head>
-
 <body>
-    <div class="email-container">
-        <div class="header">
-            <h1>Login Notification</h1>
+    <div class="email-wrapper">
+        <div class="maroon-top-bar"></div>
+
+        <!-- HEADER -->
+        <div class="header-official">
+            <div class="brand-row">
+                <div class="brand-left">
+                    <div class="brand-mark">K</div>
+                    <div class="brand-name">KaziBuddy</div>
+                </div>
+                <div class="official-tag">Login Notification</div>
+            </div>
+            <div class="title-block">
+                <h1>New Sign-In Detected</h1>
+                <div class="title-sub">Security Alert · Your Account</div>
+            </div>
         </div>
-        <div class="content">
-            <h1>Hello {{ full_name }},</h1>
-            <p>Your account was successfully logged into.</p>
-            <p>If you did not perform this action, please contact our support team immediately to secure your account.
-            </p>
-            <p>{% blocktrans trimmed %}For more information, visit our <a href="https://www.tafakari.tech">Help
-                    Center</a>.{% endblocktrans %}</p>
+
+        <!-- MAIN CONTENT -->
+        <div class="content-main">
+
+            <div class="greeting">Hello, {{ full_name }}</div>
+
+            <!-- SUCCESS BANNER -->
+            <div class="status-banner">
+                <div class="status-banner-icon">🔓</div>
+                <div class="status-banner-text">A successful login was recorded on your account.</div>
+            </div>
+
+            <div class="notification-message">
+                We're letting you know that your <strong>KaziBuddy</strong> account was just accessed. If this was you, no action is needed. If you don't recognise this activity, please secure your account immediately.
+            </div>
+
+            <!-- DETAIL CARD -->
+            <div class="detail-card">
+                <div class="card-label">Login Details</div>
+                <div class="detail-line">
+                    <span class="detail-label">Account</span>
+                    <span class="detail-value">{{ full_name }}</span>
+                </div>
+                <div class="detail-line">
+                    <span class="detail-label">Status</span>
+                    <span class="detail-value">
+                        <span class="status-badge">Successful</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- SECURITY ALERT BLOCK -->
+            <div class="alert-block">
+                <div class="alert-block-icon">🔒</div>
+                <div class="alert-block-body">
+                    <strong>Wasn't you?</strong>
+                    If you did not perform this login, contact our support team immediately to secure your account and prevent unauthorised access.
+                </div>
+            </div>
+
+            <!-- SUPPORT -->
+            <div class="support-message">
+                {% blocktrans trimmed %}For more information or assistance, visit our <a href="https://www.tafakari.tech">Help Center</a>. Our support desk is available Monday–Friday, 8am–5pm EAT.{% endblocktrans %}
+            </div>
+
+            <div class="soft-divider"></div>
+            <div style="font-size: 12px; color: #6F4F5A; margin-top: 6px;">
+                <span>🔒 Secure platform · This message was generated automatically.</span>
+            </div>
         </div>
-        <div class="footer">
-            <p>{% blocktrans trimmed %}Best regards,{% endblocktrans %}</p>
-            <p>{% blocktrans trimmed %}The Tafakari Team{% endblocktrans %}</p>
+
+        <!-- FOOTER -->
+        <div class="footer-official">
+            <div class="footer-brand">KaziBuddy · Powered by Tafakari Team</div>
+            <div class="footer-text">{% blocktrans trimmed %}This is an automated security notification from KaziBuddy.{% endblocktrans %}</div>
+            <div class="footer-text">{% blocktrans trimmed %}You received this because you are a registered user on our platform.{% endblocktrans %}</div>
+            <div class="footer-legal">
+                © 2026 Tafakari Team. All rights reserved. &nbsp;|&nbsp;
+                <a href="https://kazibuddy.tech" style="color: #8B1A35; text-decoration: none;">Privacy &amp; Terms</a>
+                &nbsp;|&nbsp; kazibuddy.tech
+            </div>
         </div>
     </div>
 </body>
-
 </html>
