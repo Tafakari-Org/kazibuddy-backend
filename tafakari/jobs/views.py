@@ -946,13 +946,34 @@ class SearchJobsView(views.APIView):
             # --- Full-text search ---
             search_query = validated_data.get('q', '').strip()
             if search_query:
-                search = SearchQuery(search_query)
-                queryset = (
-                    queryset
-                    .filter(search_vector=search)
-                    .annotate(rank=SearchRank('search_vector', search))
-                    .order_by('-rank')  #order by relevance
-                )
+                # Use prefix FTS for 3+ chars, icontains for short/partial queries
+                if len(search_query) >= 3:
+                    search = SearchQuery(search_query, search_type='websearch')  # handles partial words better
+                    fts_filter = Q(search_vector=search)
+        
+                    # Also catch partial matches FTS misses
+                    partial_filter = (
+                        Q(title__icontains=search_query) |
+                        Q(description__icontains=search_query) |
+                        Q(location_text__icontains=search_query) |
+                        Q(job_skills__skill__name__icontains=search_query)
+                    )
+        
+                    queryset = (
+                        queryset
+                        .filter(fts_filter | partial_filter)
+                        .annotate(rank=SearchRank('search_vector', search))
+                        .order_by('-rank')
+                        .distinct()
+                    )
+                else:
+                    # Short query — skip FTS entirely, just use icontains
+                    queryset = queryset.filter(
+                        Q(title__icontains=search_query) |
+                        Q(description__icontains=search_query) |
+                        Q(location_text__icontains=search_query) |
+                        Q(job_skills__skill__name__icontains=search_query)
+                    ).distinct()
 
             # --- Skill filtering (bulk __in instead of per-skill Q loop) ---
             skills = validated_data.get('skills', [])
@@ -1015,8 +1036,9 @@ class SearchJobsView(views.APIView):
             order = validated_data.get('order', 'desc')
             order_prefix = '-' if order == 'desc' else ''
 
+            has_rank = search_query and len(search_query) >= 3  # rank only annotated in FTS path
+            
             if sort_by == 'urgency_level':
-                # Case/When annotation avoids loading the full queryset into memory
                 urgency_rank = Case(
                     When(urgency_level='urgent', then=4),
                     When(urgency_level='high', then=3),
@@ -1026,8 +1048,8 @@ class SearchJobsView(views.APIView):
                     output_field=IntegerField()
                 )
                 queryset = queryset.annotate(urgency_rank=urgency_rank).order_by(f'{order_prefix}urgency_rank')
-            elif not search_query:
-                # Don't override relevance ordering when a search query is active
+            elif not has_rank:
+                # Don't override relevance ordering when FTS rank is active
                 queryset = queryset.order_by(f'{order_prefix}{sort_by}')
 
             # --- Pagination ---
