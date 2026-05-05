@@ -474,11 +474,11 @@ def _build_invite_link(token: str) -> str:
     try:
 
         base = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        # print(f"Base url type: {type(base)}, base url: {base}")
+        print(f"Base url type before convertion: {type(base)}, base url: {base}")
         #convert base url to string
         if type(base) != str:
             base = str(base)
-        
+        print(f"Base url type after convertion: {type(base)}, base url: {base}")
         return f"{base}/admin/setup-account?token={token}"
 
     except Exception as e:
