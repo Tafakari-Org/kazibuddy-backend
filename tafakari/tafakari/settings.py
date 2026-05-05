@@ -266,7 +266,7 @@ DEFAULT_FROM_EMAIL = os.getenv("EMAIL_HOST_USER", "noreply@kazibuddy.tech")
 PASSWORD_RESET_TIMEOUT = 3600
 
 
-FRONTEND_URL = os.getenv("FRONTEND_URL").split(",")
+FRONTEND_URL = os.getenv("FRONTEND_URL")
 
 
 
