@@ -471,14 +471,8 @@ class IsSuperAdmin(permissions.BasePermission):
 # ---------------------------------------------------------------------------
 
 def _build_invite_link(token: str) -> str:
-    """
-    Build the frontend URL the invitee will click to set their password.
-    The frontend is responsible for calling POST /api/accounts/setup-admin-account/
-    with the token + new password.
-    """
     base = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-    if len(base) >1:
-        base = base[1]
+    print(f"Base url type: {type(base)}, base url: {base}")
     return f"{base}/admin/setup-account?token={token}"
 
 
