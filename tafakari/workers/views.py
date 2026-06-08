@@ -53,8 +53,7 @@ class CreateWorkerProfileView(APIView):
 class ViewWorkerProfileView(APIView):
     def get(self, request, id):
         try:
-            user = CustomUser.objects.get(id=id)
-            worker_profile = WorkerProfile.objects.get(user=user)
+            worker_profile = WorkerProfile.objects.get(id=id)
             serializer = WorkerProfileSerializer(worker_profile)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except WorkerProfile.DoesNotExist:
