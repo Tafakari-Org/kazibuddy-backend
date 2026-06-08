@@ -935,15 +935,6 @@ class ChangeUserRoleView(APIView):
                 status_code=status.HTTP_404_NOT_FOUND
             )
 
-        # Ensure the request is from a super_admin
-        if request.user.user_type != "super_admin" or request.user.user_type != "admin":
-            return error_response(
-                message="Only a super_admin or admin can perform this action.",
-                status_code=status.HTTP_403_FORBIDDEN,
-            )
-        
-        
-
         new_role = request.data.get("user_type")
         valid_roles = ["super_admin", "admin", "employer", "worker","both"]
 

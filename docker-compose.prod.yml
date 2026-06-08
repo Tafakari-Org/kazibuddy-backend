@@ -14,6 +14,18 @@ services:
       - tafakari_db:/var/lib/postgresql/data
     networks:
       - kazi-network-prod
+
+  #Django Redis Application
+
+  redis:
+    image: redis:alpine
+    container_name: kazi-buddy-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6380"
+    networks:
+      - kazi-network-prod
+      
   # Django Web Application
   web:
     build:

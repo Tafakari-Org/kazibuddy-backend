@@ -13,12 +13,25 @@ services:
       - tafakari_db:/var/lib/postgresql/data
     networks:
       - kazi-network
+
+  redis:
+    image: redis:alpine
+    container_name: kazi-buddy-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    networks:
+      - kazi-network
+
   web:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: kazi-buddy-backend-local
     command: daphne -b 0.0.0.0 -p 8000 tafakari.asgi:application
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     volumes:
       - ./tafakari:/app/tafakari
       - static_volume:/app/tafakari/staticfiles
@@ -29,6 +42,28 @@ services:
       - ./tafakari/.env
     depends_on:
       - db
+      - redis
+    networks:
+      - kazi-network
+    restart: unless-stopped
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kazi-buddy-celery
+    command: celery -A tafakari worker --loglevel=info
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SKIP_COLLECTSTATIC=1
+    volumes:
+      - ./tafakari:/app/tafakari
+    env_file:
+      - ./tafakari/.env
+    depends_on:
+      - db
+      - redis
     networks:
       - kazi-network
     restart: unless-stopped
