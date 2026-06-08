@@ -41,61 +41,166 @@ from utils.custom_error import error_response, _ok, _err, _serializer_errors_to_
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from utils.logger import get_logger
+from .tasks import cleanup_unverified_user
+import tempfile
+import os
 
 logger = get_logger(__name__)
 
 User = CustomUser
 
 
+# class RegisterView(APIView):
+#     def post(self, request):
+#         # Extract the file from the request
+#         profile_pic = request.FILES.get('profile_photo')
+
+#         serializer = RegisterUserSerializer(data=request.data)
+#         if serializer.is_valid():
+#             logger.info(f"Attempting to register user: {request.data.get('email') or request.data.get('phone_number')}")
+#             # Atomic: user creation must fully succeed or roll back
+#             with transaction.atomic():
+#                 user = serializer.save()
+#             logger.info(f"User created successfully: {user.email} (ID: {user.id})")
+
+#             # External I/O: file upload to Supabase — kept outside transaction
+#             if profile_pic:
+#                 try:
+#                     file_name = f"profile_pics/{user.id}_{profile_pic.name}"
+#                     # Save the uploaded file temporarily to the filesystem
+#                     import tempfile
+#                     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+#                         for chunk in profile_pic.chunks():
+#                             temp_file.write(chunk)
+#                         temp_file_path = temp_file.name
+                    
+#                     # Upload the file using its temporary path
+#                     profile_photo_url = upload_file_to_supabase(temp_file_path, file_name, 'images')
+
+                    
+#                     # Clean up the temporary file
+#                     import os
+#                     os.remove(temp_file_path)
+#                     if profile_photo_url:
+#                         user.profile_photo_url = profile_photo_url
+#                         user.save()
+#                 except Exception as e:
+#                     print(f"Failed to upload profile picture: {str(e)}")
+#                     logger.error(f"Failed to upload profile picture: {str(e)} ")
+
+#             # External I/O: OTP generation + email — kept outside transaction
+#             try:
+#                 otp_code = generate_otp(user, 'registration')
+#                 send_otp_to_email(user, otp_code, 'registration')
+#                 logger.info(f"Registration OTP sent to {user.email}")
+#             except Exception as e:
+#                 # Handle email failure (log error, don't block registration)
+#                 logger.error(f"Failed to send registration OTP to {user.email}: {str(e)}")
+
+#             return Response({
+#                 "message": "User registered. Check email for verification OTP",
+#                 "user_id": str(user.id),
+#                 "user_data": {
+#                     "phone_number": user.phone_number,
+#                     "email": user.email,
+#                     "user_type": user.user_type,
+#                     "full_name": user.full_name,
+#                     "profile_photo_url": user.profile_photo_url,
+#                 },
+#             }, status=status.HTTP_201_CREATED)
+        
+#         logger.warning(f"Registration failed for data: {request.data}. Errors: {serializer.errors}")
+#         return Response({
+#             "success": False,
+#             "message": f"Registration failed. The " + 
+#                ", ".join([
+#                    field.replace('_', ' ')
+#                    for field in serializer.errors
+#                ]) + " you entered " + 
+#                ("are" if len(serializer.errors) > 1 else "is") + " taken.",
+#             "status_code": 400
+#         }, status=status.HTTP_400_BAD_REQUEST)
+                            
+
 class RegisterView(APIView):
     def post(self, request):
-        # Extract the file from the request
         profile_pic = request.FILES.get('profile_photo')
-
         serializer = RegisterUserSerializer(data=request.data)
-        if serializer.is_valid():
-            logger.info(f"Attempting to register user: {request.data.get('email') or request.data.get('phone_number')}")
-            # Atomic: user creation must fully succeed or roll back
-            with transaction.atomic():
-                user = serializer.save()
-            logger.info(f"User created successfully: {user.email} (ID: {user.id})")
-
-            # External I/O: file upload to Supabase — kept outside transaction
-            if profile_pic:
-                try:
-                    file_name = f"profile_pics/{user.id}_{profile_pic.name}"
-                    # Save the uploaded file temporarily to the filesystem
-                    import tempfile
-                    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                        for chunk in profile_pic.chunks():
-                            temp_file.write(chunk)
-                        temp_file_path = temp_file.name
-                    
-                    # Upload the file using its temporary path
-                    profile_photo_url = upload_file_to_supabase(temp_file_path, file_name, 'images')
-
-                    
-                    # Clean up the temporary file
-                    import os
-                    os.remove(temp_file_path)
-                    if profile_photo_url:
-                        user.profile_photo_url = profile_photo_url
-                        user.save()
-                except Exception as e:
-                    print(f"Failed to upload profile picture: {str(e)}")
-                    logger.error(f"Failed to upload profile picture: {str(e)} ")
-
-            # External I/O: OTP generation + email — kept outside transaction
+ 
+        if not serializer.is_valid():
+            logger.warning(
+                f"Registration validation failed for: "
+                f"{request.data.get('email') or request.data.get('phone_number')}. "
+                f"Errors: {serializer.errors}"
+            )
+            return Response(
+                self._build_error_response(serializer.errors),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+ 
+        logger.info(
+            f"Attempting to register: "
+            f"{request.data.get('email') or request.data.get('phone_number')}"
+        )
+ 
+        # ── Step 1: Persist user (atomic) ─────────────────────────────────────
+        user = serializer.save()
+        logger.info(f"User created: {user.email} (ID: {user.id})")
+ 
+        # ── Step 2: Send OTP ──────────────────────────────────────────────────
+        # External I/O — outside any DB transaction.
+        # On failure, roll back by deleting the user so the email/phone
+        # slot is freed and the user can retry registration cleanly.
+        try:
+            otp_code = generate_otp(user, 'registration')
+            if not otp_code:
+                raise ValueError("generate_otp returned an empty code")
+            send_otp_to_email(user, otp_code, 'registration')
+            logger.info(f"Registration OTP sent to {user.email}")
+        except Exception as e:
+            logger.error(
+                f"OTP delivery failed for {user.email}: {e} — rolling back user {user.id}"
+            )
             try:
-                otp_code = generate_otp(user, 'registration')
-                send_otp_to_email(user, otp_code, 'registration')
-                logger.info(f"Registration OTP sent to {user.email}")
-            except Exception as e:
-                # Handle email failure (log error, don't block registration)
-                logger.error(f"Failed to send registration OTP to {user.email}: {str(e)}")
-
-            return Response({
-                "message": "User registered. Check email for verification OTP",
+                user.delete()
+            except Exception as delete_err:
+                logger.critical(
+                    f"CLEANUP REQUIRED — could not delete orphaned user {user.id}: {delete_err}"
+                )
+            return Response(
+                {
+                    "success": False,
+                    "message": "Registration failed: could not send verification email. Please try again.",
+                    "status_code": 503,
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+ 
+        # ── Step 3: Schedule cleanup if user never verifies ───────────────────
+        # Fires automatically once the OTP window closes.
+        # If email_verified is True by then, the task skips — fully idempotent.
+        otp_ttl = getattr(settings, 'OTP_TTL_SECONDS', 600)
+        cleanup_delay = otp_ttl + 30  # small buffer so task fires after expiry
+ 
+        cleanup_unverified_user.apply_async(
+            args=[str(user.id)],
+            countdown=cleanup_delay,
+        )
+        logger.info(
+            f"Cleanup task scheduled for user {user.id} in {cleanup_delay}s "
+            f"(OTP TTL: {otp_ttl}s)"
+        )
+ 
+        # ── Step 4: Upload profile photo (best-effort) ────────────────────────
+        # Runs after OTP succeeds so there are no orphaned Supabase files
+        # if earlier steps roll back. Failure here is non-fatal.
+        if profile_pic:
+            self._upload_profile_photo(user, profile_pic)
+ 
+        return Response(
+            {
+                "success": True,
+                "message": "User registered. Check your email for the verification OTP.",
                 "user_id": str(user.id),
                 "user_data": {
                     "phone_number": user.phone_number,
@@ -104,21 +209,63 @@ class RegisterView(APIView):
                     "full_name": user.full_name,
                     "profile_photo_url": user.profile_photo_url,
                 },
-            }, status=status.HTTP_201_CREATED)
-        
-        logger.warning(f"Registration failed for data: {request.data}. Errors: {serializer.errors}")
-        return Response({
+            },
+            status=status.HTTP_201_CREATED,
+        )
+ 
+    # ── Helpers ───────────────────────────────────────────────────────────────
+ 
+    def _upload_profile_photo(self, user, profile_pic) -> None:
+        """Upload to Supabase and update user.profile_photo_url. Non-fatal on error."""
+        try:
+            file_name = f"profile_pics/{user.id}_{profile_pic.name}"
+            with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                for chunk in profile_pic.chunks():
+                    tmp.write(chunk)
+                tmp_path = tmp.name
+ 
+            try:
+                profile_photo_url = upload_file_to_supabase(tmp_path, file_name, 'images')
+            finally:
+                os.remove(tmp_path)  # always clean up even if upload raises
+ 
+            if profile_photo_url:
+                user.profile_photo_url = profile_photo_url
+                user.save(update_fields=['profile_photo_url'])
+                logger.info(f"Profile photo uploaded for user {user.id}")
+        except Exception as e:
+            logger.error(f"Profile photo upload failed for user {user.id}: {e}")
+ 
+    @staticmethod
+    def _build_error_response(errors: dict) -> dict:
+        taken_fields = []
+        messages = []
+ 
+        for field, field_errors in errors.items():
+            readable = field.replace('_', ' ')
+            if isinstance(field_errors, list):
+                for err in field_errors:
+                    err_str = str(err)
+                    if 'unique' in err_str.lower() or 'already exists' in err_str.lower():
+                        taken_fields.append(readable)
+                    else:
+                        messages.append(f"{readable}: {err_str}")
+            else:
+                messages.append(f"{readable}: {field_errors}")
+ 
+        if taken_fields:
+            joined = ", ".join(taken_fields)
+            verb = "are" if len(taken_fields) > 1 else "is"
+            messages.insert(0, f"The {joined} you entered {verb} already taken.")
+ 
+        return {
             "success": False,
-            "message": f"Registration failed. The " + 
-               ", ".join([
-                   field.replace('_', ' ')
-                   for field in serializer.errors
-               ]) + " you entered " + 
-               ("are" if len(serializer.errors) > 1 else "is") + " taken.",
-            "status_code": 400
-        }, status=status.HTTP_400_BAD_REQUEST)
-                            
-    
+            "message": " ".join(messages) if messages else "Registration failed.",
+            "status_code": 400,
+        }
+
+
+
 class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -689,13 +836,52 @@ class DeleteAccountView(APIView):
             )
                 
 
+# class VerifyEmailView(APIView):
+#     def post(self, request):
+#         user_id = request.data.get('user_id')
+#         otp_code = request.data.get('otp_code')
+#         otp_type = request.data.get('otp_type')
+        
+#         try:         
+#             user = CustomUser.objects.get(id=user_id)
+#         except CustomUser.DoesNotExist as e:
+#             return error_response(
+#                 message="User not found",
+#                 errors={"error": str(e)},
+#                 status_code=status.HTTP_404_NOT_FOUND
+#             )
+        
+#         try:
+#             # Atomic: OTP validation + email_verified flag must succeed or fail together
+#             with transaction.atomic():
+#                 if validate_otp(user, otp_code, otp_type):
+#                     user.email_verified = True
+#                     user.save()
+#                     logger.info(f"Email verified successfully for user: {user.email}")
+#                 else:
+#                     logger.warning(f"Invalid OTP verification attempt for user: {user.email}")
+#                     return error_response(
+#                         message="Invalid or expired OTP",
+#                         errors={"error": "Invalid or expired OTP"},
+#                         status_code=status.HTTP_400_BAD_REQUEST
+#                     )
+#             return Response({"message": "Email verified successfully"})
+            
+#         except Exception as e:
+#             logger.error(f"Error verifying email for user {user_id}: {str(e)}")
+#             return error_response(
+#                 message="Error verifying email",
+#                 errors={"error": str(e)},
+#                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
+
 class VerifyEmailView(APIView):
     def post(self, request):
         user_id = request.data.get('user_id')
         otp_code = request.data.get('otp_code')
         otp_type = request.data.get('otp_type')
-        
-        try:         
+
+        try:
             user = CustomUser.objects.get(id=user_id)
         except CustomUser.DoesNotExist as e:
             return error_response(
@@ -703,13 +889,12 @@ class VerifyEmailView(APIView):
                 errors={"error": str(e)},
                 status_code=status.HTTP_404_NOT_FOUND
             )
-        
+
         try:
-            # Atomic: OTP validation + email_verified flag must succeed or fail together
             with transaction.atomic():
                 if validate_otp(user, otp_code, otp_type):
                     user.email_verified = True
-                    user.save()
+                    user.save(update_fields=['email_verified'])
                     logger.info(f"Email verified successfully for user: {user.email}")
                 else:
                     logger.warning(f"Invalid OTP verification attempt for user: {user.email}")
@@ -718,8 +903,7 @@ class VerifyEmailView(APIView):
                         errors={"error": "Invalid or expired OTP"},
                         status_code=status.HTTP_400_BAD_REQUEST
                     )
-            return Response({"message": "Email verified successfully"})
-            
+
         except Exception as e:
             logger.error(f"Error verifying email for user {user_id}: {str(e)}")
             return error_response(
@@ -727,6 +911,23 @@ class VerifyEmailView(APIView):
                 errors={"error": str(e)},
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+        # Revoke the cleanup task so it doesn't fire after successful verification.
+        # This is best-effort — if revocation fails the task is still safe because
+        # it checks email_verified=False before deleting, so it will just skip.
+        try:
+            from celery.result import AsyncResult
+            task_id = cache.get(f"cleanup_task_id:{user_id}")
+            if task_id:
+                AsyncResult(task_id).revoke()
+                cache.delete(f"cleanup_task_id:{user_id}")
+                logger.info(f"Revoked cleanup task {task_id} for user {user_id}")
+        except Exception as e:
+            logger.warning(f"Could not revoke cleanup task for user {user_id}: {e}")
+
+        return Response({"message": "Email verified successfully"})
+
+
 
 class PasswordResetView(APIView):
     def post(self, request):

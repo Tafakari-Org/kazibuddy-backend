@@ -8,6 +8,7 @@ autobahn==24.4.2
 Automat==25.4.16
 beautifulsoup4==4.14.3
 cachetools==6.2.4
+celery==5.6.3
 certifi==2025.4.26
 cffi==1.17.1
 channels==4.2.2
@@ -22,6 +23,7 @@ dj-database-url==3.0.1
 dj-rest-auth==6.0.0
 Django==5.2.1
 django-allauth==0.61.1
+django-celery-beat
 django-cors-headers==4.7.0
 django-messages==0.6.0
 djangorestframework==3.16.1

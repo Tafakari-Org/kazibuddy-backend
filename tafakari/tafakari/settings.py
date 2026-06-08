@@ -268,8 +268,14 @@ PASSWORD_RESET_TIMEOUT = 3600
 
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 
+OTP_TTL_SECONDS=600
 
-
+redis_host = os.getenv("REDIS_HOST", "localhost")
+redis_port = os.getenv("REDIS_PORT", "6379")
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", f"redis://{redis_host}:{redis_port}/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", f"redis://{redis_host}:{redis_port}/0")
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
