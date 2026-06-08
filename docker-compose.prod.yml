@@ -1,5 +1,4 @@
 services:
-  #Database
   db:
     image: postgres:17
     container_name: kazi-buddy-backend-db
@@ -15,18 +14,14 @@ services:
     networks:
       - kazi-network-prod
 
-  #Django Redis Application
-
   redis:
     image: redis:alpine
     container_name: kazi-buddy-redis
     restart: unless-stopped
-    ports:
-      - "6380:6380"
+    # no ports needed — only internal container communication
     networks:
       - kazi-network-prod
-      
-  # Django Web Application
+
   web:
     build:
       context: .
@@ -42,6 +37,28 @@ services:
       - ./tafakari/.env
     environment:
       - DEBUG=False
+    depends_on:
+      - db
+      - redis
+    networks:
+      - kazi-network-prod
+    restart: always
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kazi-buddy-celery-prod
+    command: celery -A tafakari worker --loglevel=info
+    volumes:
+      - /var/www/kazibuddy-backend/uploads:/app/tafakari/uploads
+    env_file:
+      - ./tafakari/.env
+    environment:
+      - DEBUG=False
+    depends_on:
+      - db
+      - redis
     networks:
       - kazi-network-prod
     restart: always
@@ -49,8 +66,6 @@ services:
 volumes:
   static_volume:
   tafakari_db:
-
-  
 
 networks:
   kazi-network-prod:
