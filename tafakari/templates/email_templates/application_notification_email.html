@@ -406,9 +406,15 @@
             </div>
 
             <div class="notification-message">
-                Thank you for applying to <strong>{{ job_title }}</strong>. After careful consideration, the employer has decided to move forward with another candidate for this role. We know this isn't the news you were hoping for, and we genuinely appreciate the time and effort you put into your application.
-                <br><br>
-                This is not a reflection of your worth or potential — the job market is competitive, and the right opportunity is out there for you.
+                {% if action_type == 'application_rejected' %}
+                    We wanted to reach out personally to let you know that the position for <strong>{{ job_title }}</strong> has been filled. Your application was carefully reviewed, but the employer chose to move forward with another candidate this time.
+                    <br><br>
+                    This is not a reflection of your skills or dedication — competition on the platform is real, and every application counts. Keep going.
+                {% else %}
+                    Thank you for applying to <strong>{{ job_title }}</strong>. After careful consideration, the employer has decided to move forward with another candidate for this role. We know this isn't the news you were hoping for, and we genuinely appreciate the time and effort you put into your application.
+                    <br><br>
+                    This is not a reflection of your worth or potential — the job market is competitive, and the right opportunity is out there for you.
+                {% endif %}
             </div>
 
             <!-- JOB CARD -->
