@@ -11,6 +11,9 @@ from .utils import check_if_user_isOwner
 from utils.custom_pagination import CustomPagination
 from django.db import transaction
 from utils.views import send_otp_to_email
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # Create your views here.

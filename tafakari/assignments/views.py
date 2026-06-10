@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser
 from rest_framework import status
+import logging
 
 from .models import Assignment, AssignmentCheckin, AssignmentMilestone
 from .serializers import (
@@ -16,6 +17,8 @@ from .serializers import (
 from applications.models import JobApplication
 from utils.custom_pagination import CustomPagination
 from utils.views import send_otp_to_email
+
+logger = logging.getLogger(__name__)
 
 
 # ── Assignments ───────────────────────────────────────────────────────────────
