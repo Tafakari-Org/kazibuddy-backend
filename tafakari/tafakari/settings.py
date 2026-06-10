@@ -268,7 +268,7 @@ PASSWORD_RESET_TIMEOUT = 3600
 
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 
-OTP_TTL_SECONDS=600
+OTP_TTL_SECONDS=300
 
 redis_host = os.getenv("REDIS_HOST", "localhost")
 redis_port = os.getenv("REDIS_PORT", "6379")
