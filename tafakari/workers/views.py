@@ -5,6 +5,7 @@ from django.views.decorators.http import require_http_methods
 from django.core.exceptions import ObjectDoesNotExist
 from .models import WorkerProfile
 import json
+import logging
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -15,6 +16,8 @@ from rest_framework import serializers
 from django.db import IntegrityError
 from .custom_error import error_response
 from utils.custom_pagination import CustomPagination
+
+logger = logging.getLogger(__name__)
 
 class CreateWorkerProfileView(APIView):
     permission_classes = [IsAuthenticated]
