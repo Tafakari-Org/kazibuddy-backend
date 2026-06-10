@@ -7,6 +7,9 @@ from .serializers import EmployerProfileSerializer
 from utils.custom_error import error_response
 from utils.custom_pagination import CustomPagination
 from django.db import transaction
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CreateEmployerProfileView(APIView):

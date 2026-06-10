@@ -323,6 +323,48 @@ def send_admin_invite_email(user, invite_link: str, invited_by=None):
         # Don't raise — a failed email must not block the invite creation response
 
 
+def send_account_deleted_email(full_name: str, email: str, signup_url: str = None):
+    """
+    Send a notification email to a user whose account was automatically deleted
+    because they did not verify their email within the required time window.
+
+    This is called *after* the user record has been deleted, so we pass the
+    raw values (full_name, email) rather than the ORM object.
+
+    Uses the `email_templates/account_deleted_email.html` template rendered with:
+        full_name   display name captured before deletion
+        email       address the account was registered under
+        signup_url  link back to the registration page (falls back to settings)
+    """
+    try:
+        if not email:
+            logger.error("send_account_deleted_email called with no email — skipping")
+            return
+
+        if signup_url is None:
+            signup_url = getattr(settings, 'FRONTEND_URL', 'https://kazibuddy.tech') + '/auth/signup'
+
+        subject = "Your KaziBuddy account has been removed — you can still sign up again"
+        context = {
+            'full_name': full_name or email,
+            'email': email,
+            'signup_url': signup_url,
+        }
+
+        try:
+            html_message = render_to_string('email_templates/account_deleted_email.html', context)
+        except Exception as template_error:
+            logger.error(f"Error rendering account_deleted_email template: {str(template_error)}")
+            raise Exception("Failed to render account deleted email template.")
+
+        send_email_async(subject, html_message, [email])
+        logger.info(f"Account-deleted notification queued for {email}")
+
+    except Exception as e:
+        logger.error(f"send_account_deleted_email error: {str(e)}")
+        # Don't raise — a failed notification email must never interrupt the cleanup task
+
+
 def get_supabase_client():
 
 
