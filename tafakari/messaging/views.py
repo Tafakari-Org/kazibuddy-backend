@@ -9,11 +9,14 @@ from django.utils import timezone
 from accounts.models import CustomUser  
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+import logging
 
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
 
 from django.views.generic import TemplateView
+
+logger = logging.getLogger(__name__)
 
 class MessagingView(TemplateView):
     template_name = 'messaging/messaging.html'
