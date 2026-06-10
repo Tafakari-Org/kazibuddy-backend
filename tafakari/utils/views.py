@@ -342,7 +342,7 @@ def send_account_deleted_email(full_name: str, email: str, signup_url: str = Non
             return
 
         if signup_url is None:
-            signup_url = getattr(settings, 'FRONTEND_URL', 'https://kazibuddy.tech') + '/auth/register'
+            signup_url = getattr(settings, 'FRONTEND_URL', 'https://kazibuddy.tech') + '/auth/signup'
 
         subject = "Your KaziBuddy account has been removed — you can still sign up again"
         context = {
