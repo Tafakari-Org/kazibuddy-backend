@@ -268,7 +268,7 @@ PASSWORD_RESET_TIMEOUT = 3600
 
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 
-OTP_TTL_SECONDS=600
+OTP_TTL_SECONDS=300
 
 redis_host = os.getenv("REDIS_HOST", "localhost")
 redis_port = os.getenv("REDIS_PORT", "6379")
@@ -345,6 +345,62 @@ LOGGING = {
             'backupCount': 5,
             'formatter': 'standard',
         },
+        'adminpanel_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_DIR, 'adminpanel.log'),
+            'maxBytes': 1024 * 1024 * 5,
+            'backupCount': 5,
+            'formatter': 'standard',
+        },
+        'jobs_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_DIR, 'jobs.log'),
+            'maxBytes': 1024 * 1024 * 5,
+            'backupCount': 5,
+            'formatter': 'standard',
+        },
+        'applications_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_DIR, 'applications.log'),
+            'maxBytes': 1024 * 1024 * 5,
+            'backupCount': 5,
+            'formatter': 'standard',
+        },
+        'assignments_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_DIR, 'assignments.log'),
+            'maxBytes': 1024 * 1024 * 5,
+            'backupCount': 5,
+            'formatter': 'standard',
+        },
+        'workers_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_DIR, 'workers.log'),
+            'maxBytes': 1024 * 1024 * 5,
+            'backupCount': 5,
+            'formatter': 'standard',
+        },
+        'employers_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_DIR, 'employers.log'),
+            'maxBytes': 1024 * 1024 * 5,
+            'backupCount': 5,
+            'formatter': 'standard',
+        },
+        'messaging_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_DIR, 'messaging.log'),
+            'maxBytes': 1024 * 1024 * 5,
+            'backupCount': 5,
+            'formatter': 'standard',
+        },
     },
     'loggers': {
         'django': {
@@ -359,6 +415,41 @@ LOGGING = {
         },
         'tafakari.accounts': {
             'handlers': ['console', 'accounts_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'tafakari.adminpanel': {
+            'handlers': ['console', 'adminpanel_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'tafakari.jobs': {
+            'handlers': ['console', 'jobs_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'tafakari.applications': {
+            'handlers': ['console', 'applications_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'tafakari.assignments': {
+            'handlers': ['console', 'assignments_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'tafakari.workers': {
+            'handlers': ['console', 'workers_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'tafakari.employers': {
+            'handlers': ['console', 'employers_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'tafakari.messaging': {
+            'handlers': ['console', 'messaging_file'],
             'level': 'DEBUG',
             'propagate': False,
         },
