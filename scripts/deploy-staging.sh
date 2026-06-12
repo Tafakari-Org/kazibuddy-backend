@@ -2,8 +2,8 @@
 set -e
 
 # Configuration
-PROJECT_DIR="/var/www/kazibuddy-backend/kazibuddy-backend"
-ENV_FILE="/var/www/kazibuddy-backend/kazibuddy-backend/.env.staging"
+PROJECT_DIR="/var/www/kazibuddy-backend/kazibuddy-backend-staging"
+ENV_FILE="/var/www/kazibuddy-backend/kazibuddy-backend-staging/tafakari/.env.staging"
 UPLOADS_DIR="/var/www/kazibuddy-backend/uploads-staging"
 
 echo "Starting staging deployment..."
