@@ -113,6 +113,7 @@ class MyJobApplicationListView(APIView):
     pagination_class = CustomPagination
     serializer_class = JobApplicationSerializer
 
+
     def get(self, request, *args, **kwargs):
         worker_profile = WorkerProfile.objects.filter(user=request.user).first()
         if not worker_profile:
@@ -120,8 +121,16 @@ class MyJobApplicationListView(APIView):
                 'status': 'error',
                 'message': 'Worker profile not found.'
             }, status=404)
-
-        applications = JobApplication.objects.filter(worker=worker_profile)
+        #convert to lowercase and strip whitespace
+        status = request.query_params.get('status', '').lower().strip()
+        if status == 'accepted':
+            applications = JobApplication.objects.filter(worker=worker_profile, status='accepted').order_by('-applied_at')
+        elif status == 'rejected':
+            applications = JobApplication.objects.filter(worker=worker_profile, status='rejected').order_by('-applied_at')
+        elif status == 'pending':
+            applications = JobApplication.objects.filter(worker=worker_profile, status='pending').order_by('-applied_at')
+        else:
+            applications = JobApplication.objects.filter(worker=worker_profile).order_by('-applied_at')
         paginator = self.pagination_class()
         paginated_applications = paginator.paginate_queryset(applications, request)
         serializer = self.serializer_class(paginated_applications, many=True)
