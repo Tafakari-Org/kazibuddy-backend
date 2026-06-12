@@ -31,7 +31,7 @@ services:
     volumes:
       - static_volume-staging:/app/tafakari/staticfiles
       - /var/www/kazibuddy-backend/uploads-staging:/app/tafakari/uploads
-      - /var/www/kazibuddy-backend/kazibuddy-backend/tafakari/logs-staging:/app/tafakari/logs
+      - /var/www/kazibuddy-backend/kazibuddy-backend-staging/tafakari/logs-staging:/app/tafakari/logs
     ports:
       - "8001:8000"
     env_file:
@@ -53,7 +53,7 @@ services:
     command: celery -A tafakari worker --loglevel=info
     volumes:
       - /var/www/kazibuddy-backend/uploads-staging:/app/tafakari/uploads
-      - /var/www/kazibuddy-backend/kazibuddy-backend/tafakari/logs-staging:/app/tafakari/logs
+      - /var/www/kazibuddy-backend/kazibuddy-backend-staging/tafakari/logs-staging:/app/tafakari/logs
     env_file:
       - ./tafakari/.env.staging
     environment:
