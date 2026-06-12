@@ -1,0 +1,74 @@
+services:
+  db:
+    image: postgres:17
+    container_name: kazi-buddy-backend-db-staging
+    restart: always
+    environment:
+      POSTGRES_DB: tafakaridb
+    env_file:
+      - ./tafakari/.env.staging
+    ports:
+      - "5433:5432"
+    volumes:
+      - tafakari_db-staging:/var/lib/postgresql/data
+    networks:
+      - kazi-network-prod-staging
+
+  redis:
+    image: redis:alpine
+    container_name: kazi-buddy-redis-staging
+    restart: unless-stopped
+    # no ports needed — only internal container communication
+    networks:
+      - kazi-network-prod-staging
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kazi-buddy-backend-prod-staging
+    command: daphne -b 0.0.0.0 -p 8000 tafakari.asgi:application
+    volumes:
+      - static_volume-staging:/app/tafakari/staticfiles
+      - /var/www/kazibuddy-backend/uploads-staging:/app/tafakari/uploads
+      - /var/www/kazibuddy-backend/kazibuddy-backend/tafakari/logs-staging:/app/tafakari/logs
+    ports:
+      - "8001:8000"
+    env_file:
+      - ./tafakari/.env.staging
+    environment:
+      - DEBUG=True
+    depends_on:
+      - db
+      - redis
+    networks:
+      - kazi-network-prod-staging
+    restart: always
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kazi-buddy-celery-prod-staging
+    command: celery -A tafakari worker --loglevel=info
+    volumes:
+      - /var/www/kazibuddy-backend/uploads-staging:/app/tafakari/uploads
+      - /var/www/kazibuddy-backend/kazibuddy-backend/tafakari/logs-staging:/app/tafakari/logs
+    env_file:
+      - ./tafakari/.env.staging
+    environment:
+      - DEBUG=True
+    depends_on:
+      - db
+      - redis
+    networks:
+      - kazi-network-prod-staging
+    restart: always
+
+volumes:
+  static_volume-staging:
+  tafakari_db-staging:
+
+networks:
+  kazi-network-prod-staging:
+    driver: bridge
