@@ -24,9 +24,9 @@ COPY --chown=django:django . /app/
 # Copy entrypoint script
 COPY --chown=django:django entrypoint.sh /app/
 RUN chmod +x /app/entrypoint.sh
-# Create uploads directory with correct ownership
-RUN mkdir -p /app/tafakari/uploads \
-    && chown -R django:django /app/tafakari/uploads
+# Create uploads and staticfiles directories with correct ownership
+RUN mkdir -p /app/tafakari/uploads /app/tafakari/staticfiles \
+    && chown -R django:django /app/tafakari/uploads /app/tafakari/staticfiles
 # Switch to non-root user
 USER django
 # Expose port
