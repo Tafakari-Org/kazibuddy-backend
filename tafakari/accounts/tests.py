@@ -78,6 +78,11 @@ class CustomUserManagerTests(TestCase):
         )
         self.assertFalse(user.has_usable_password())
 
+    def test_set_unusable_password(self):
+        user = make_user()
+        user.set_unusable_password()
+        self.assertFalse(user.check_password("anypassword"))
+
     def test_create_superuser_requires_phone(self):
         with self.assertRaises(ValueError):
             CustomUser.objects.create_superuser(password="Admin123!")
