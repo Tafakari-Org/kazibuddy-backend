@@ -67,6 +67,9 @@ class JobSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'expires_at', 'filled_at',
             'job_skills', 'images', 'attachments'
         ]
+        extra_kwargs = {
+            'estimated_hours': {'required': False}
+        }
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
