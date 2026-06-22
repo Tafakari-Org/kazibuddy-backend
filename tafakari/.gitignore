@@ -1,5 +1,6 @@
 .env
 .env.prod
+.env.staging
 *__pycache__/
 *.py[cod]
 *.pyo
