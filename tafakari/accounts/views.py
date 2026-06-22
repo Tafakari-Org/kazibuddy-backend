@@ -182,10 +182,16 @@ class RegisterView(APIView):
         otp_ttl = getattr(settings, 'OTP_TTL_SECONDS', 600)
         cleanup_delay = otp_ttl + 30  # small buffer so task fires after expiry
  
-        cleanup_unverified_user.apply_async(
+        task = cleanup_unverified_user.apply_async(
             args=[str(user.id)],
             countdown=cleanup_delay,
         )
+        try:
+            from django.core.cache import cache
+            cache.set(f"cleanup_task_id:{user.id}", task.id, timeout=cleanup_delay + 60)
+        except Exception as cache_err:
+            logger.warning(f"Could not cache cleanup task ID for user {user.id}: {cache_err}")
+
         logger.info(
             f"Cleanup task scheduled for user {user.id} in {cleanup_delay}s "
             f"(OTP TTL: {otp_ttl}s)"
@@ -916,6 +922,7 @@ class VerifyEmailView(APIView):
         # This is best-effort — if revocation fails the task is still safe because
         # it checks email_verified=False before deleting, so it will just skip.
         try:
+            from django.core.cache import cache
             from celery.result import AsyncResult
             task_id = cache.get(f"cleanup_task_id:{user_id}")
             if task_id:
