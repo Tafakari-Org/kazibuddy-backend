@@ -17,6 +17,7 @@ from .serializers import (
 from applications.models import JobApplication
 from utils.custom_pagination import CustomPagination
 from utils.views import send_otp_to_email
+from .tasks import notify_rejected_applicants
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,15 @@ class ListCreateAssignmentView(APIView):
                 start_date=str(assignment.job.start_date),
                 agreed_rate=str(assignment.job.budget_min),
                 payment_type=assignment.job.payment_type,
+            )
+
+            # Notify all other applicants who were rejected — offloaded to Celery
+            notify_rejected_applicants.delay(
+                job_id=str(assignment.job.id),
+                assigned_worker_id=str(assignment.worker.id),
+            )
+            logger.info(
+                f"[Assignment] Rejection notification task queued for job {assignment.job.id}."
             )
 
             return Response({
