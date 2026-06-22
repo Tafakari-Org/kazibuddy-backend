@@ -6,22 +6,21 @@ databases:
 services:
   - type: web
     name: tafakari
-    env: python
+    runtime: python
     buildCommand: ./build.sh
     startCommand: gunicorn tafakari.tafakari.wsgi:application
     envVars:
       - key: SECRET_KEY
       - key: DEBUG
-        value: False
+        value: "False"
       - key: GOOGLE_OAUTH_CLIENT_ID
       - key: GOOGLE_OAUTH_CLIENT_SECRET
       - key: GOOGLE_OAUTH_CALLBACK_URL
       - key: DEFAULT_FROM_EMAIL
       - key: DEFAULT_FROM_EMAIL_PASSWORD
       - key: DATABASE_URL
-      - key: SUPABASE_URL
-      - key: SUPABASE_KEY
-
         fromDatabase:
           name: tafakari-db
           property: connectionString
+      - key: SUPABASE_URL
+      - key: SUPABASE_KEY
