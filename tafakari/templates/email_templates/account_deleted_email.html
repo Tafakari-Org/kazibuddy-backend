@@ -385,39 +385,41 @@
         <!-- MAIN CONTENT -->
         <div class="content-main">
 
-            <div class="greeting">Hello, {{ full_name }}</div>
+            <div class="greeting">Hey, {{ full_name }} —</div>
 
             <!-- STATUS BANNER -->
             <div class="status-banner">
                 <div class="status-banner-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B1A35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
-                <div class="status-banner-text">Your KaziBuddy account has been removed due to an incomplete email verification.</div>
+                <div class="status-banner-text">We noticed you started signing up about 5 minutes ago — your account has since been removed.</div>
             </div>
 
             <div class="notification-message">
-                We're writing to let you know that your <strong>KaziBuddy</strong> account registered under <strong>{{ email }}</strong> has been <strong>automatically deleted</strong> because the email verification was not completed within the required time window.
+                We noticed that you tried creating a <strong>KaziBuddy</strong> account using <strong>{{ email }}</strong> about 5 minutes ago, but the verification window closed before you could confirm your email address. To keep our platform secure, we automatically remove accounts that aren't verified within that time — so unfortunately, yours was one of them.
+                <br><br>
+                No worries though — this happens sometimes, and it's <strong>completely fixable</strong>. Your email address is free again and you can sign up right now, it only takes a minute.
             </div>
 
             <!-- INFO CARD -->
             <div class="info-card">
-                <div class="info-card-label">Why this happened</div>
+                <div class="info-card-label">Here's what happened</div>
                 <div class="info-card-row">
                     <span class="dot">›</span>
-                    <span>A one-time verification code was sent to <strong>{{ email }}</strong> upon registration.</span>
+                    <span>When you signed up, we sent a one-time verification code to <strong>{{ email }}</strong>.</span>
                 </div>
                 <div class="info-card-row">
                     <span class="dot">›</span>
-                    <span>The code expired before your account was verified.</span>
+                    <span>The code is only valid for <strong>5 minutes</strong> — the window closed before it was entered.</span>
                 </div>
                 <div class="info-card-row">
                     <span class="dot">›</span>
-                    <span>Unverified accounts are automatically removed to keep our platform secure.</span>
+                    <span>We automatically remove unverified accounts after that window to keep KaziBuddy safe for everyone.</span>
                 </div>
             </div>
 
             <!-- CTA BLOCK -->
             <div class="cta-block">
                 <p>
-                    Don't worry — you can <strong>create a new account at any time</strong> using the same email address. The process only takes a minute, and you'll receive a fresh verification code immediately.
+                    Your spot on KaziBuddy is still waiting for you. Hit the button below to <strong>sign up again</strong> — same email is totally fine. This time just keep an eye on your inbox and enter the code within 5 minutes.
                 </p>
                 <a href="{{ signup_url }}" class="cta-button">Create a New Account</a>
             </div>
