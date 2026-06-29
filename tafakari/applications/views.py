@@ -160,7 +160,7 @@ class JobApplicationDetailView(APIView):
             }, status=404)
         #check wheather the user is the owner of the application
         check_if_user_isOwner(request.user, application_id)
-        serializer = self.serializer_class(paginated_application)
+        serializer = self.serializer_class(paginated_application, many=True)
         return Response({
             'status': 'success',
             'application': serializer.data
