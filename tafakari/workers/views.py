@@ -101,7 +101,7 @@ class ListWorkerProfilesView(APIView):
     pagination_class = CustomPagination
     def get(self, request):
         try:
-            worker_profiles = WorkerProfile.objects.all()
+            worker_profiles = WorkerProfile.objects.all().order_by('-created_at')
 
             location = request.GET.get("location")
             availability = request.GET.get("availability")
