@@ -258,7 +258,7 @@ class ListWorkerAssignmentsView(APIView):
         try:
             assignments = Assignment.objects.select_related(
                 'job', 'worker__user', 'employer__user'
-            ).filter(worker_id=worker_id)
+            ).filter(worker_id=worker_id).order_by('-created_at')
 
             paginator = self.pagination_class()
             paginated = paginator.paginate_queryset(assignments, request)
