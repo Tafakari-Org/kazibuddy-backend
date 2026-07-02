@@ -13,7 +13,6 @@ from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 from .models import Job, JobCategory, Skill
 from .serializers import FeaturedJobSerializer
-from employers.models import EmployerProfile
 from skills.models import Skill
 from utils.custom_pagination import CustomPagination
 from utils.views import send_otp_to_email
@@ -197,12 +196,6 @@ class CreateJobView(views.APIView):
             except JobCategory.DoesNotExist:
                 return Response({"error": "Category not found"}, status=status.HTTP_404_NOT_FOUND)
  
-        # ── Validate employer profile ──────────────────────────────────────
-        try:
-            employer_profile = EmployerProfile.objects.get(user=request.user)
-        except EmployerProfile.DoesNotExist:
-            return Response({"error": "Employer profile not found"}, status=status.HTTP_404_NOT_FOUND)
- 
         # ── Validate payload before touching the DB ────────────────────────
         serializer = JobSerializer(data=request.data, context={'request': request})
         if not serializer.is_valid():
@@ -237,7 +230,7 @@ class CreateJobView(views.APIView):
  
         try:
             with transaction.atomic():
-                job = serializer.save(employer=employer_profile, category=category)
+                job = serializer.save(employer=request.user, category=category)
  
                 # Cover image
                 if cover_file:
@@ -325,7 +318,7 @@ class UpdateJobView(views.APIView):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=status.HTTP_404_NOT_FOUND)
  
-        if job.employer != request.user.employerprofile:
+        if job.employer != request.user:
             return Response({"error": "You do not own this job"}, status=status.HTTP_403_FORBIDDEN)
  
         serializer = JobSerializer(
@@ -450,7 +443,7 @@ class DeleteJobView(views.APIView):
             return Response({"error": "Job not found"}, status=status.HTTP_404_NOT_FOUND)
  
         # ── Ownership check ────────────────────────────────────────────────
-        if job.employer.user != request.user:
+        if job.employer != request.user:
             return Response({"error": "You do not own this job"}, status=status.HTTP_403_FORBIDDEN)
  
         job_title = job.title
@@ -643,7 +636,7 @@ class JobsByEmployerView(views.APIView):
                 serializer = JobSerializer(paginated_jobs, many=True)
                 return Response(
                     {
-                        "message": f"Jobs  retrieved successfully for employer {jobs[0].employer.user.full_name if jobs else 'Unknown'}",
+                        "message": f"Jobs  retrieved successfully for employer {jobs[0].employer.full_name if jobs else 'Unknown'}",
                         "data": serializer.data
                     },
                     status=200
@@ -659,18 +652,16 @@ class ApprovedJobsByEmployerView(views.APIView):
 
     def get(self, request, employer_id):
         # Verify the authenticated user matches the employer making the request
-        if not hasattr(request.user, 'employerprofile') or request.user.id != employer_id:
+        if request.user.id != employer_id:
             return Response(
                 {"error": "You are not authorized to view jobs for this employer"},
                 status=status.HTTP_403_FORBIDDEN
             )
-        #get employer profile id
-        employer_profile_id = request.user.employerprofile.id
 
         try:
             paginator = self.pagination_class()
             jobs = Job.objects.filter(
-                employer_id=employer_profile_id,
+                employer_id=employer_id,
                 is_assigned=False,
                 admin_approved=True
             ).select_related('employer', 'category').prefetch_related('job_skills', 'images', 'attachments')\
@@ -684,7 +675,7 @@ class ApprovedJobsByEmployerView(views.APIView):
 
             paginated_jobs = paginator.paginate_queryset(jobs, request)
             serializer = JobListSerializer(paginated_jobs, many=True)
-            employer_name = jobs.first().employer.user.full_name
+            employer_name = jobs.first().employer.full_name
 
             return paginator.get_paginated_response({
                 "message": f"Approved Jobs retrieved successfully for employer {employer_name}",
@@ -703,21 +694,18 @@ class AssignedJobsByEmployerView(views.APIView):
     pagination_class = CustomPagination
 
     def get(self, request, employer_id):
-        if not hasattr(request.user, 'employerprofile') or request.user.id != employer_id:
+        if request.user.id != employer_id:
             return Response(
                 {"error": "You are not authorized to view jobs for this employer"},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        #get employer profile id
-        employer_profile_id = request.user.employerprofile.id
-
         try:
             paginator = self.pagination_class()
             jobs = (
                 Job.objects
-                .filter(employer_id=employer_profile_id, is_assigned=True)
-                .select_related('assignment__worker__user')  # avoids N+1 for worker
+                .filter(employer_id=employer_id, is_assigned=True)
+                .select_related('assignment__worker')  # avoids N+1 for worker
                 .annotate(skills_count=Count('job_skills'))      # keep existing annotation
             )
 
@@ -729,7 +717,7 @@ class AssignedJobsByEmployerView(views.APIView):
 
             paginated_jobs = paginator.paginate_queryset(jobs, request)
             serializer = AssignedJobListSerializer(paginated_jobs, many=True)
-            employer_name = jobs.first().employer.user.full_name
+            employer_name = jobs.first().employer.full_name
 
             return paginator.get_paginated_response({
                 "message": f"Assigned Jobs retrieved successfully for employer {employer_name}",
@@ -775,8 +763,8 @@ class JobEmployerView(views.APIView):
                     "message": "Employer retrieved successfully",
                     "data": {
                         "id": employer.id,
-                        "full_name": employer.user.full_name,
-                        "email": employer.user.email
+                        "full_name": employer.full_name,
+                        "email": employer.email
                     }
                 },
                 status=200
@@ -937,7 +925,7 @@ class SearchJobsView(views.APIView):
                 admin_approved=True,
                 is_assigned=False,
             ).select_related(
-                'employer__user',
+                'employer',
                 'category'
             ).prefetch_related(
                 'job_skills__skill'         # double underscore — populates skill cache used by serializer
@@ -1136,7 +1124,7 @@ class ListJobsWithApplicationsView(views.APIView):
                     'urgency_level', 'budget_min', 'budget_max', 'payment_type',
                     'status', 'admin_approved', 'views_count', 'applications_count',
                     'created_at', 'expires_at',
-                    'employer__id', 'employer__company_name',
+                    'employer__id', 'employer__full_name',
                     'category__id', 'category__name',
                 )
                 .order_by('-created_at')
@@ -1185,7 +1173,7 @@ class ListDraftJobsView(views.APIView):
                     'urgency_level', 'budget_min', 'budget_max', 'payment_type',
                     'status', 'admin_approved', 'views_count', 'applications_count',
                     'created_at', 'expires_at',
-                    'employer__id', 'employer__company_name',
+                    'employer__id', 'employer__full_name',
                     'category__id', 'category__name',
                 )
                 .order_by('-created_at')
@@ -1234,7 +1222,7 @@ class ListActiveJobsView(views.APIView):
                     'urgency_level', 'budget_min', 'budget_max', 'payment_type',
                     'status', 'admin_approved', 'views_count', 'applications_count',
                     'created_at', 'expires_at',
-                    'employer__id', 'employer__company_name',
+                    'employer__id', 'employer__full_name',
                     'category__id', 'category__name',
                 )
                 .order_by('-created_at')
@@ -1268,10 +1256,10 @@ class EmployerUnapprovedJobsListView(views.APIView):
     pagination_class = CustomPagination
 
     def get(self, request, employer_id):
-        if not hasattr(request.user, 'employerprofile') or request.user.id != employer_id:
-            return Response({"status":"error", "message": "You are not authorized to view jobs for this employer"}, status=status.HTTP_403_FORBIDDEN) 
-        try: 
-            jobs = Job.objects.filter(admin_approved=False, employer=request.user.employerprofile.id)\
+        if request.user.id != employer_id:
+            return Response({"status":"error", "message": "You are not authorized to view jobs for this employer"}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            jobs = Job.objects.filter(admin_approved=False, employer=employer_id)\
                 .select_related('employer', 'category')\
                 .prefetch_related('images', 'attachments')\
                 .annotate(skills_count=Count('job_skills'))\
@@ -1298,13 +1286,11 @@ class CancelledUnapprovedJobsView(views.APIView):
         Returns cancelled-but-never-approved jobs belonging to the requesting employer.
         The authenticated user must own the employer profile matching employer_id.
         """
-        if not hasattr(request.user, 'employerprofile') or request.user.id != employer_id:
+        if request.user.id != employer_id:
             return Response(
                 {"status": "error", "message": "You are not authorized to view jobs for this employer"},
                 status=status.HTTP_403_FORBIDDEN
             )
-
-        employer_profile_id = request.user.employerprofile.id
 
         try:
             jobs = (
@@ -1316,7 +1302,7 @@ class CancelledUnapprovedJobsView(views.APIView):
                 .filter(
                     status='cancelled',
                     admin_approved=False,
-                    employer_id=employer_profile_id,
+                    employer_id=employer_id,
                 )
                 .select_related('employer', 'category')
                 .prefetch_related('images', 'attachments')
@@ -1325,7 +1311,7 @@ class CancelledUnapprovedJobsView(views.APIView):
                     'urgency_level', 'budget_min', 'budget_max', 'payment_type',
                     'status', 'admin_approved', 'views_count', 'applications_count',
                     'created_at', 'expires_at',
-                    'employer__id', 'employer__company_name',
+                    'employer__id', 'employer__full_name',
                     'category__id', 'category__name',
                 )
                 .order_by('-created_at')

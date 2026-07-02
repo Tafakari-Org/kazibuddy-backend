@@ -30,8 +30,6 @@ from django.urls import reverse
 from django.shortcuts import redirect
 from django.views import View
 from django.shortcuts import render
-from workers.models import WorkerProfile
-from employers.models import EmployerProfile
 from django.db import transaction
 import jwt
 import json
@@ -44,6 +42,11 @@ from utils.logger import get_logger
 from .tasks import cleanup_unverified_user
 import tempfile
 import os
+import mimetypes
+from utils.file_upload import FileUploadService
+from documents.models import UserDocument, DocumentType
+
+MAX_ACADEMIC_DOCUMENTS = 3
 
 logger = get_logger(__name__)
 
@@ -125,8 +128,21 @@ User = CustomUser
 class RegisterView(APIView):
     def post(self, request):
         profile_pic = request.FILES.get('profile_photo')
+        academic_documents = request.FILES.getlist('academic_documents')
+
+        # ── Validate document count before touching the DB ─────────────────────
+        if len(academic_documents) > MAX_ACADEMIC_DOCUMENTS:
+            return Response(
+                {
+                    "success": False,
+                    "message": f"You can upload up to {MAX_ACADEMIC_DOCUMENTS} supporting documents.",
+                    "status_code": 400,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         serializer = RegisterUserSerializer(data=request.data)
- 
+
         if not serializer.is_valid():
             logger.warning(
                 f"Registration validation failed for: "
@@ -202,7 +218,13 @@ class RegisterView(APIView):
         # if earlier steps roll back. Failure here is non-fatal.
         if profile_pic:
             self._upload_profile_photo(user, profile_pic)
- 
+
+        # ── Step 5: Upload academic documents (best-effort, optional) ─────────
+        # Same timing/rationale as the profile photo above. The frontend is
+        # the primary size/count gate; a bad file here is skipped, not fatal.
+        if academic_documents:
+            self._upload_academic_documents(user, academic_documents)
+
         return Response(
             {
                 "success": True,
@@ -241,7 +263,35 @@ class RegisterView(APIView):
                 logger.info(f"Profile photo uploaded for user {user.id}")
         except Exception as e:
             logger.error(f"Profile photo upload failed for user {user.id}: {e}")
- 
+
+    def _upload_academic_documents(self, user, documents) -> None:
+        """Upload each file to local disk and create a UserDocument row. Per-file failures are non-fatal."""
+        document_type, _ = DocumentType.objects.get_or_create(
+            name="Academic Document",
+            defaults={
+                "description": "Supporting academic document uploaded during registration",
+                "applicable_to": "both",
+                "is_required": False,
+            },
+        )
+
+        file_service = FileUploadService()
+        for doc_file in documents:
+            try:
+                file_url = file_service.upload(doc_file, subfolder='documents')
+                mime_type, _ = mimetypes.guess_type(doc_file.name)
+                UserDocument.objects.create(
+                    user_id=user,
+                    document_type=document_type,
+                    file_name=doc_file.name,
+                    file_url=file_url,
+                    file_type=mime_type,
+                    file_size=doc_file.size,
+                )
+                logger.info(f"Academic document uploaded for user {user.id}: {doc_file.name}")
+            except Exception as e:
+                logger.warning(f"Academic document upload skipped for user {user.id} ({doc_file.name}): {e}")
+
     @staticmethod
     def _build_error_response(errors: dict) -> dict:
         taken_fields = []
@@ -338,26 +388,8 @@ class GoogleLoginCallback(APIView):
                 )
 
             
-            # Get and validate user_type from state parameter
-            
-            state_param = request.GET.get("state")
-            requested_user_type = "worker"  # default
-            
-            if state_param:
-                try:
-                    state_data = json.loads(state_param)
-                    requested_user_type = state_data.get("user_type", "worker")
-                except json.JSONDecodeError:
-                    # If state parsing fails, default to worker
-                    pass
-            
-            ALLOWED_USER_TYPES = {"worker", "employer", "both"}
-
-            user_type = (
-                requested_user_type
-                if requested_user_type in ALLOWED_USER_TYPES
-                else "worker"
-            )
+            # All new OAuth users are created as regular users
+            user_type = "user"
 
             
             # Exchange code for tokens
@@ -541,14 +573,7 @@ class GoogleLoginCallback(APIView):
                     "error": "Authorization code not provided"
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            requested_user_type = request.GET.get("user_type", "worker")
-
-            ALLOWED_USER_TYPES = {"worker", "employer", "both"}
-            user_type = (
-                requested_user_type
-                if requested_user_type in ALLOWED_USER_TYPES
-                else "worker"
-            )
+            user_type = "user"
             
             # Exchange authorization code for tokens
             token_url = 'https://oauth2.googleapis.com/token'

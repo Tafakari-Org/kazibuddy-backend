@@ -4,8 +4,6 @@ from django.contrib.postgres.fields import JSONField
 from django.utils.translation import gettext_lazy as _
 from accounts.models import CustomUser
 from assignments.models import Assignment
-from workers.models import WorkerProfile
-from employers.models import EmployerProfile
 # Create your models here.
 class PaymentMethod(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -28,8 +26,8 @@ class PaymentMethod(models.Model):
 class EscrowAccount(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
-    employer = models.ForeignKey(EmployerProfile, on_delete=models.CASCADE)
-    worker = models.ForeignKey(WorkerProfile, on_delete=models.CASCADE)
+    employer = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='escrow_as_employer')
+    worker = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='escrow_as_worker')
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     currency = models.CharField(max_length=3, default='KES')
     STATUS_CHOICES = [

@@ -34,8 +34,6 @@ urlpatterns = [
     path('api/v1/auth/google/callback/', GoogleLoginCallback.as_view(), name='google_callback'),
     # Include the URLs from the workers app
     path('api/workers/', include('workers.urls')),
-    # Include the URLs from the employers app
-    path('api/employers/', include('employers.urls')),
     # Include the URLs from the jobs app
     path('api/jobs/', include('jobs.urls')),
     # Include the URLs from the skills app
