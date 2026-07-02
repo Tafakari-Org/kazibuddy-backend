@@ -38,7 +38,7 @@ class ListCreateAssignmentView(APIView):
             job_id = request.query_params.get('job_id')
 
             assignments = Assignment.objects.select_related(
-                'job', 'worker__user', 'employer__user'
+                'job', 'worker', 'employer'
             ).prefetch_related(
                 'checkins', 'milestones'
             ).order_by('-created_at')
@@ -103,11 +103,11 @@ class ListCreateAssignmentView(APIView):
 
             # Notify worker
             send_otp_to_email(
-                user=assignment.worker.user,
+                user=assignment.worker,
                 otp_type='assignment_notification',
                 action_type='assignment_created',
                 job_title=assignment.job.title,
-                employer_name=assignment.employer.user.full_name,
+                employer_name=assignment.employer.full_name,
                 start_date=str(assignment.job.start_date),
                 agreed_rate=str(assignment.job.budget_min),
                 payment_type=assignment.job.payment_type,
@@ -115,11 +115,11 @@ class ListCreateAssignmentView(APIView):
 
             # Notify employer
             send_otp_to_email(
-                user=assignment.employer.user,
+                user=assignment.employer,
                 otp_type='assignment_notification',
                 action_type='assignment_created',
                 job_title=assignment.job.title,
-                worker_name=assignment.worker.user.full_name,
+                worker_name=assignment.worker.full_name,
                 start_date=str(assignment.job.start_date),
                 agreed_rate=str(assignment.job.budget_min),
                 payment_type=assignment.job.payment_type,
@@ -159,7 +159,7 @@ class AssignmentDetailView(APIView):
     def get_object(self, assignment_id):
         try:
             return Assignment.objects.select_related(
-                'job', 'worker__user', 'employer__user'
+                'job', 'worker', 'employer'
             ).prefetch_related(
                 'checkins', 'milestones'
             ).get(id=assignment_id)
@@ -257,7 +257,7 @@ class ListWorkerAssignmentsView(APIView):
     def get(self, request, worker_id):
         try:
             assignments = Assignment.objects.select_related(
-                'job', 'worker__user', 'employer__user'
+                'job', 'worker', 'employer'
             ).filter(worker_id=worker_id)
 
             paginator = self.pagination_class()
@@ -290,7 +290,7 @@ class ListCreateCheckinView(APIView):
     def get(self, request, assignment_id):
         try:
             checkins = AssignmentCheckin.objects.select_related(
-                'worker__user'
+                'worker'
             ).filter(
                 assignment_id=assignment_id
             ).order_by('-checkin_time')
@@ -481,7 +481,7 @@ class NotifyRejectedApplicantsView(APIView):
                 }, status=status.HTTP_404_NOT_FOUND)
 
             rejected_applications = JobApplication.objects.select_related(
-                'worker__user'
+                'worker'
             ).filter(
                 job=assignment.job,
                 # status='rejected',
@@ -498,7 +498,7 @@ class NotifyRejectedApplicantsView(APIView):
             for application in rejected_applications:
                 try:
                     send_otp_to_email(
-                        user=application.worker.user,
+                        user=application.worker,
                         otp_type='application_notification',
                         action_type='application_rejected',
                         job_title=assignment.job.title,
@@ -545,7 +545,7 @@ class NotifySingleRejectedApplicantView(APIView):
 
             try:
                 application = JobApplication.objects.select_related(
-                    'worker__user'
+                    'worker'
                 ).get(
                     id=applicant_id,
                     job=assignment.job,
@@ -563,7 +563,7 @@ class NotifySingleRejectedApplicantView(APIView):
             #     }, status=status.HTTP_400_BAD_REQUEST)
 
             send_otp_to_email(
-                user=application.worker.user,
+                user=application.worker,
                 otp_type='application_notification',
                 action_type='application_rejected',
                 job_title=assignment.job.title,
@@ -574,7 +574,7 @@ class NotifySingleRejectedApplicantView(APIView):
                 'message': 'Rejection email sent successfully.',
                 'data': {
                     'worker_id': str(application.worker.id),
-                    'worker_name': application.worker.user.full_name,
+                    'worker_name': application.worker.full_name,
                     'job_title': assignment.job.title,
                 }
             }, status=status.HTTP_200_OK)

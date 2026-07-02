@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.db.models import Count
 from .models import Job, JobCategory, JobSkill, JobImage, JobAttachment
 from skills.models import Skill
-from employers.serializers import EmployerProfileSerializer
+from accounts.serializers import UserSerializer
 
 
 class JobCategorySerializer(serializers.ModelSerializer):
@@ -51,8 +51,8 @@ class JobSerializer(serializers.ModelSerializer):
     """Full serializer — use for detail/single job views only"""
     category = JobCategorySerializer(read_only=True)
     job_skills = JobSkillSerializer(many=True, read_only=True)
-    employer = EmployerProfileSerializer(read_only=True)
-    employer_name = serializers.CharField(source='employer.company_name', read_only=True)
+    employer = UserSerializer(read_only=True)
+    employer_name = serializers.CharField(source='employer.full_name', read_only=True)
     images = JobImageSerializer(many=True, read_only=True)
     attachments = JobAttachmentSerializer(many=True, read_only=True)
 
@@ -80,7 +80,7 @@ class JobSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         skills_data = validated_data.pop('skills', [])
-        validated_data['employer'] = self.context['request'].user.employerprofile
+        validated_data['employer'] = self.context['request'].user
         job = Job.objects.create(**validated_data)
         self._create_job_skills(job, skills_data)
         return job
@@ -114,7 +114,7 @@ class JobListSerializer(serializers.ModelSerializer):
     Avoids heavy nested serialization — use this instead of JobSerializer in list endpoints.
     Images and attachments are prefetched on the queryset for zero N+1 overhead.
     """
-    employer_name = serializers.CharField(source='employer.company_name', read_only=True)
+    employer_name = serializers.CharField(source='employer.full_name', read_only=True)
     employer_id = serializers.UUIDField(source='employer.id', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     category_id = serializers.UUIDField(source='category.id', read_only=True)
@@ -140,7 +140,7 @@ class JobListSerializer(serializers.ModelSerializer):
 
 class FeaturedJobSerializer(serializers.ModelSerializer):
     """Serializer for featured jobs"""
-    employer_name = serializers.CharField(source='employer.company_name', read_only=True)
+    employer_name = serializers.CharField(source='employer.full_name', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
 
     class Meta:
@@ -175,7 +175,7 @@ class AssignedJobListSerializer(JobListSerializer):
     Used specifically in AssignedJobsByEmployerView.
     """
     worker_name = serializers.CharField(
-        source='assignment.worker.user.full_name', 
+        source='assignment.worker.full_name',
         read_only=True
     )
     worker_id = serializers.UUIDField(

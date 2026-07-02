@@ -1,11 +1,9 @@
 from rest_framework import serializers
-from workers.models import WorkerProfile
-from employers.models import EmployerProfile
 from .models import Assignment, AssignmentCheckin, AssignmentMilestone
 
 
 class AssignmentCheckinSerializer(serializers.ModelSerializer):
-    worker_name = serializers.CharField(source='worker.user.full_name', read_only=True)
+    worker_name = serializers.CharField(source='worker.full_name', read_only=True)
 
     class Meta:
         model = AssignmentCheckin
@@ -35,8 +33,8 @@ class AssignmentSerializer(serializers.ModelSerializer):
     job_end_date = serializers.DateField(source='job.end_date', read_only=True)
     job_budget_min = serializers.DecimalField(source='job.budget_min', max_digits=10, decimal_places=2, read_only=True)
     job_budget_max = serializers.DecimalField(source='job.budget_max', max_digits=10, decimal_places=2, read_only=True)
-    worker_name = serializers.CharField(source='worker.user.full_name', read_only=True)
-    employer_name = serializers.CharField(source='employer.user.full_name', read_only=True)
+    worker_name = serializers.CharField(source='worker.full_name', read_only=True)
+    employer_name = serializers.CharField(source='employer.full_name', read_only=True)
     checkins = AssignmentCheckinSerializer(many=True, read_only=True)
     milestones = AssignmentMilestoneSerializer(many=True, read_only=True)
 
@@ -68,25 +66,19 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
         worker = data.get('worker')
         employer = data.get('employer')
 
-        # 1. Verify worker profile exists
-        if not WorkerProfile.objects.filter(id=worker.id).exists():
+        # 1. A user cannot be assigned to their own job
+        if worker == employer:
             raise serializers.ValidationError({
-                'worker': 'Worker profile does not exist.'
+                'worker': 'A user cannot be assigned as the worker on their own job.'
             })
 
-        # 2. Verify employer exists
-        if not EmployerProfile.objects.filter(id=employer.id).exists():
-            raise serializers.ValidationError({
-                'employer': 'Employer profile does not exist.'
-            })
-
-        # 3. Verify job belongs to the given employer
+        # 2. Verify job belongs to the given employer
         if job.employer != employer:
             raise serializers.ValidationError({
                 'employer': 'This job does not belong to the given employer.'
             })
 
-        # 4. Prevent duplicate assignment for the same job
+        # 3. Prevent duplicate assignment for the same job
         if Assignment.objects.filter(job=job).exists():
             raise serializers.ValidationError({
                 'job': 'This job already has an assignment.'

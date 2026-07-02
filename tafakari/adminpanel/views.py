@@ -13,6 +13,7 @@ from .models import AdminInvite
 from .serializers import (
     ApproveUserSerializer,
     UserStatusSerializer,
+    UserDetailSerializer,
     CreateAdminSerializer,
     AdminDetailSerializer,
     SetupAdminAccountSerializer,
@@ -23,8 +24,6 @@ from rest_framework.permissions import IsAdminUser
 from utils.views import send_otp_to_email, send_admin_invite_email
 from utils.custom_error import error_response
 from utils.custom_pagination import CustomPagination
-from employers.models import EmployerProfile
-from employers.serializers import EmployerProfileSerializer
 import logging
 
 logger = logging.getLogger(__name__)
@@ -154,10 +153,10 @@ class ApproveJobView(APIView):
         job.save()
         
         # Notify employer of job approval
-        if job.employer and job.employer.user:
+        if job.employer:
             send_otp_to_email(
-                user=job.employer.user, 
-                otp_type='job_notification', 
+                user=job.employer,
+                otp_type='job_notification',
                 action_type='admin_job_approved',
                 job_title=job.title
             )
@@ -189,9 +188,9 @@ class ApproveJobView(APIView):
         job.save()
 
         # Notify employer of job unapproval
-        if job.employer and job.employer.user:
+        if job.employer:
             send_otp_to_email(
-                user=job.employer.user,
+                user=job.employer,
                 otp_type='job_notification',
                 action_type='admin_job_unapproved',
                 job_title=job.title
@@ -272,6 +271,20 @@ class ListPendingUsersView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+class PendingUserDetailView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request, user_id):
+        user = get_object_or_404(
+            CustomUser.objects.prefetch_related('documents__document_type'),
+            id=user_id,
+        )
+        serializer = UserDetailSerializer(user)
+        return Response(
+            {"message": "User detail retrieved successfully", "data": serializer.data},
+            status=status.HTTP_200_OK,
+        )
+
 class UpdateJobApplicationStatusView(APIView):
     permission_classes = [permissions.IsAdminUser]
 
@@ -324,8 +337,8 @@ class UpdateJobApplicationStatusView(APIView):
 
             # Notify worker of application status update
             send_otp_to_email(
-                user=application.worker.user, 
-                otp_type='job_notification', 
+                user=application.worker,
+                otp_type='job_notification',
                 action_type='application_status_updated',
                 job_title=application.job.title,
                 job_status=application.get_status_display()
@@ -409,46 +422,6 @@ class DeleteUserByEmailView(APIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
             
-class ListEmployerProfilesView(APIView):
-    permission_classes = [permissions.IsAdminUser]
-    pagination_class = CustomPagination
-
-    def get(self, request):
-        try:
-            company_name = request.GET.get("company_name")
-            location = request.GET.get("location")
-            industry = request.GET.get("industry")
-            business_type = request.GET.get("business_type")
-
-            employers = EmployerProfile.objects.all().select_related("user")
-
-            if company_name:
-                employers = employers.filter(company_name__icontains=company_name)
-            if location:
-                employers = employers.filter(location__icontains=location)
-            if industry:
-                employers = employers.filter(industry__icontains=industry)
-            if business_type:
-                employers = employers.filter(business_type=business_type)
-
-            paginator = self.pagination_class()
-            paginated_employers = paginator.paginate_queryset(employers, request)
-           
-            serializer = EmployerProfileSerializer(paginated_employers, many=True)
-            return paginator.get_paginated_response({
-                "message": "Employer profiles retrieved successfully",
-                "data": serializer.data
-            })
-            
-        
-        except Exception as e:
-            return Response({
-                "error":true,
-                "message":str(e),
-                "status":status.HTTP_500_INTERNAL_SERVER_ERROR
-            })
-
-
 # ---------------------------------------------------------------------------
 # Custom permission: only super_admin users may manage admin accounts
 # ---------------------------------------------------------------------------
@@ -936,7 +909,7 @@ class ChangeUserRoleView(APIView):
             )
 
         new_role = request.data.get("user_type")
-        valid_roles = ["super_admin", "admin", "employer", "worker","both"]
+        valid_roles = ["super_admin", "admin", "user"]
 
         if not new_role or new_role not in valid_roles:
             return error_response(
@@ -946,6 +919,15 @@ class ChangeUserRoleView(APIView):
             )
 
         user.user_type = new_role
+        if new_role == "super_admin":
+            user.is_staff = True
+            user.is_superuser = True
+        elif new_role == "admin":
+            user.is_staff = True
+            user.is_superuser = False
+        else:
+            user.is_staff = False
+            user.is_superuser = False
         user.save()
 
         # Notify user about role change
