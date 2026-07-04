@@ -1,4 +1,4 @@
-from time import timezone
+from django.utils import timezone
 from .serializers import JobSerializer, JobCategorySerializer, JobSkillSerializer, JobImageSerializer, JobAttachmentSerializer,JobListSerializer,AssignedJobListSerializer
 from .search_serializers import JobSearchSerializer, JobSearchQuerySerializer
 from rest_framework import views, permissions, status
@@ -442,13 +442,15 @@ class DeleteJobView(views.APIView):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=status.HTTP_404_NOT_FOUND)
  
-        # ── Ownership check ────────────────────────────────────────────────
-        if job.employer != request.user:
+        # ── Ownership check (admins may delete any job) ─────────────────────
+        is_admin = request.user.user_type in ("admin", "super_admin")
+        if job.employer != request.user and not is_admin:
             return Response({"error": "You do not own this job"}, status=status.HTTP_403_FORBIDDEN)
- 
+
         job_title = job.title
+        job_employer = job.employer
         file_service = FileUploadService()
- 
+
         # ── Collect file URLs before deleting the DB record ────────────────
         image_urls = [img.image_url for img in job.images.all() if img.image_url]
         attachment_urls = [att.file_url for att in job.attachments.all() if att.file_url]
@@ -485,14 +487,16 @@ class DeleteJobView(views.APIView):
             except Exception as e:
                 logger.error(f"Failed to delete attachment (job={job_id}, url={url}): {e}", exc_info=True)
  
-        # ── Notify ────────────────────────────────────────────────────────
-        send_otp_to_email(
-            user=request.user,
-            otp_type='job_notification',
-            action_type='deleted',
-            job_title=job_title,
-        )
- 
+        # ── Notify the job's poster (not necessarily whoever deleted it —
+        # an admin may have performed the deletion on the poster's behalf) ──
+        if job_employer:
+            send_otp_to_email(
+                user=job_employer,
+                otp_type='job_notification',
+                action_type='deleted',
+                job_title=job_title,
+            )
+
         return Response({"message": "Job deleted successfully"}, status=status.HTTP_200_OK)
 
 class JobSkillsView(views.APIView):
@@ -587,6 +591,7 @@ class FeaturedJobsView(views.APIView):
     def get(self, request):
         try:
             featured_jobs = Job.objects.filter(
+                Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now()),
                 is_featured=True,
                 is_assigned=False,
                 status='active',
