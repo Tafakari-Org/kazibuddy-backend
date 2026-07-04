@@ -1,6 +1,7 @@
 """
 Seed command — creates test users for local/staging development.
 
+
 Usage:
     python manage.py seed_data            # create all seed users
     python manage.py seed_data --flush    # delete seed users fir
@@ -17,6 +18,7 @@ from django.db import transaction
 from accounts.models import CustomUser
 
 PASSWORD = "Admin@1234"
+
 SEED_DOMAIN = "@tafakari.local"
 
 SEED_USERS = [
