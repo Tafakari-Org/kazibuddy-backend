@@ -20,5 +20,6 @@ jobs:
                   key: ${{ secrets.SSH_PRIVATE_KEY }}
                   script: |
                       cd /var/www/kazibuddy-backend/kazibuddy-backend/
-                      git pull origin deployment
+                      git fetch origin deployment
+                      git reset --hard origin/deployment
                       bash scripts/deploy.sh
