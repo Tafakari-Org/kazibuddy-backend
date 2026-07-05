@@ -45,6 +45,7 @@ import os
 import mimetypes
 from utils.file_upload import FileUploadService
 from documents.models import UserDocument, DocumentType
+from django.contrib.auth.password_validation import validate_password as django_validate_password
 
 MAX_ACADEMIC_DOCUMENTS = 3
 
@@ -786,37 +787,97 @@ class UpdateUserProfileView(APIView):
                     },
                     status=status.HTTP_401_UNAUTHORIZED
                 )
-            
+
             user = request.user
             data = request.data
-            
-            # Update user fields
+
+            # ── Every field below is optional/partial — only touch what's sent ──
             user.full_name = data.get("full_name", user.full_name)
             user.phone_number = data.get("phone_number", user.phone_number)
-            user.profile_photo_url = data.get("profile_photo_url", user.profile_photo_url)
-            
-            print(f"user photo url: {user.profile_photo_url}")
+
+            # ── Email — changing it requires re-verification ────────────────────
+            email_changed = False
+            new_email = data.get("email")
+            if new_email and new_email != user.email:
+                if CustomUser.objects.filter(email=new_email).exclude(pk=user.pk).exists():
+                    return error_response(
+                        message="Error updating user profile",
+                        errors={"email": "This email address is already in use"},
+                        status_code=status.HTTP_400_BAD_REQUEST
+                    )
+                user.email = new_email
+                user.email_verified = False
+                email_changed = True
+
+            # ── Password — optional, validated with Django's configured rules ──
+            new_password = data.get("password")
+            if new_password:
+                try:
+                    django_validate_password(new_password, user=user)
+                except Exception as e:
+                    return error_response(
+                        message="Error updating user profile",
+                        errors={"password": list(getattr(e, "messages", [str(e)]))},
+                        status_code=status.HTTP_400_BAD_REQUEST
+                    )
+                user.set_password(new_password)
+
+            # ── Profile photo — actual file upload (was reading a nonexistent
+            # 'profile_photo_url' text field before; the frontend sends a file
+            # under 'profile_photo') ────────────────────────────────────────────
+            old_photo_url = None
+            profile_photo = request.FILES.get("profile_photo")
+            if profile_photo:
+                try:
+                    file_service = FileUploadService()
+                    old_photo_url = user.profile_photo_url
+                    user.profile_photo_url = file_service.upload(profile_photo, subfolder='images')
+                except ValueError as e:
+                    return error_response(
+                        message="Error updating user profile",
+                        errors={"profile_photo": str(e)},
+                        status_code=status.HTTP_400_BAD_REQUEST
+                    )
+
             try:
                 user.save()
-                logger.info(f"User profile updated successfully for {user.email}")
-                return Response({
-                    "message": "Profile updated successfully",
-                    "user_id": str(user.id),
-                    "email": user.email,
-                    "phone_number": user.phone_number,
-                    "user_type": user.user_type,
-                    "full_name": user.full_name,
-                    "profile_photo_url": user.profile_photo_url,
-                    "email_verified": user.email_verified,
-                    "phone_verified": user.phone_verified,
-                }, status=status.HTTP_200_OK)
             except Exception as e:
-                # return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                 return error_response(
                     message="Error updating user profile",
                     errors={"error": str(e)},
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
+
+            logger.info(f"User profile updated successfully for {user.email}")
+
+            # Remove the old photo from storage only after the DB commit succeeds
+            if old_photo_url:
+                try:
+                    FileUploadService().remove(old_photo_url)
+                except Exception as e:
+                    logger.warning(f"Old profile photo not removed ({old_photo_url}): {e}")
+
+            # Re-verification OTP for the new email — reuses the same
+            # registration verification flow/page (otp_type='registration')
+            if email_changed:
+                try:
+                    otp_code = generate_otp(user, 'registration')
+                    send_otp_to_email(user, otp_code, 'registration')
+                except Exception as e:
+                    logger.error(f"Failed to send re-verification OTP to {user.email}: {e}")
+
+            return Response({
+                "message": "Profile updated successfully",
+                "user_id": str(user.id),
+                "email": user.email,
+                "phone_number": user.phone_number,
+                "user_type": user.user_type,
+                "full_name": user.full_name,
+                "profile_photo_url": user.profile_photo_url,
+                "email_verified": user.email_verified,
+                "phone_verified": user.phone_verified,
+                "email_changed": email_changed,
+            }, status=status.HTTP_200_OK)
     
 class LogoutView(APIView):
     def post(self, request):

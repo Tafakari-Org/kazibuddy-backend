@@ -302,14 +302,17 @@ class RejectedJobApplicationListView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            applications = JobApplication.objects.filter(status='rejected')
+            applications = JobApplication.objects.filter(status='rejected')\
+                .select_related('job','worker')\
+                .prefetch_related('job__job_skills','job__category', 'job__images', 'job__attachments')\
+                .order_by('-applied_at')
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
-            serializer = self.serializer_class(paginated_applications, many=True)
-            return Response({
-            'status': 'success',
-            'data': serializer.data
-            }, status=200)
+            serializer = self.serializer_class(paginated_applications, many=True, context={'request': request})
+            return paginator.get_paginated_response({
+                'status': 'success',
+                'data': serializer.data
+            })
         except Exception as e:
             return Response({
                 'status': 'error',
@@ -331,11 +334,11 @@ class PendingJobApplicationListView(APIView):
                 .order_by('-applied_at')
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
-            serializer = self.serializer_class(paginated_applications, many=True)
-            return Response({
-            'status': 'success',
-            'data': serializer.data
-            }, status=200)
+            serializer = self.serializer_class(paginated_applications, many=True, context={'request': request})
+            return paginator.get_paginated_response({
+                'status': 'success',
+                'data': serializer.data
+            })
         except Exception as e:
             return Response({
                 'status': 'error',
@@ -357,11 +360,11 @@ class AcceptedJobApplicationListView(APIView):
                 .order_by('-applied_at')
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
-            serializer = self.serializer_class(paginated_applications, many=True)
-            return Response({
-            'status': 'success',
-            'data': serializer.data
-            }, status=200)
+            serializer = self.serializer_class(paginated_applications, many=True, context={'request': request})
+            return paginator.get_paginated_response({
+                'status': 'success',
+                'data': serializer.data
+            })
         except Exception as e:
             return Response({
                 'status': 'error',

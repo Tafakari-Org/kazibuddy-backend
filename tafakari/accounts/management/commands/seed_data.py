@@ -13,6 +13,7 @@ this domain in production.
 
 """
 
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from accounts.models import CustomUser
@@ -66,13 +67,13 @@ SEED_USERS = [
         "full_name": "Alice Kamau",
         "username": "alice_kamau",
         "phone_number": "0712000001",
-        "user_type": "user"
+        "user_type": "user",
         "is_staff": False,
         "is_superuser": False,
         "is_active": True,
         "is_verified": True,
         "email_verified": True,
-},
+    },
 
     {
         "email": "bob@tafakari.local",
