@@ -38,8 +38,8 @@ echo "Building and restarting containers..."
 docker compose -f docker-compose.prod.yml up -d --build
 
 # Run migrations
-# echo "Running database migrations..."
-# docker compose -f docker-compose.prod.yml exec web python /app/tafakari/manage.py migrate --noinput
+echo "Running database migrations..."
+docker compose -f docker-compose.prod.yml exec web python /app/tafakari/manage.py migrate --noinput
 
 # Collect static files
 echo "Collecting static files..."
