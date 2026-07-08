@@ -9,8 +9,10 @@ from email.mime.multipart import MIMEMultipart
 from accounts.models import OTPVerification
 from django.utils import timezone
 from django.template.loader import render_to_string
+from django.utils.html import strip_tags
 from threading import Thread
 import random
+import re
 import supabase
 import logging
 
@@ -141,9 +143,13 @@ def send_email_async(subject, html_message, recipient_list):
             msg['From'] = settings.DEFAULT_FROM_EMAIL
             msg['To'] = ', '.join(recipient_list)
 
-            # Attach HTML content
-            html_part = MIMEText(html_message, 'html')
-            msg.attach(html_part)
+            # Plain-text alternative — required by most spam filters alongside HTML.
+            # Per RFC 2046, the plain part must come before the HTML part so
+            # clients that render only the last matching part prefer the HTML.
+            text_content = strip_tags(html_message)
+            text_content = re.sub(r'\n\s*\n+', '\n\n', text_content).strip()
+            msg.attach(MIMEText(text_content, 'plain'))
+            msg.attach(MIMEText(html_message, 'html'))
 
             # Port 465 → implicit SSL; Port 587 → STARTTLS
             if use_ssl:
@@ -188,7 +194,8 @@ def send_otp_to_email(user, otp_code=None, otp_type='registration', **kwargs):
         elif otp_type == 'assignment_notification':
             subject = "Assignment Notification"
         else:
-            subject = f"{otp_type.replace('_', ' ').capitalize()} OTP Verification"
+            otp_type_label = otp_type.replace('_', ' ').title().replace('Otp', 'OTP')
+            subject = f"{otp_type_label} OTP Verification"
             
         recipient_list = [user.email]
         context = {
