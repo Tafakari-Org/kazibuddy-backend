@@ -22,6 +22,7 @@ PASSWORD = "Admin@1234"
 
 SEED_DOMAIN = "@tafakari.local"
 
+
 SEED_USERS = [
     # ── super admins ──────────────────────────────────────────────────────────
     {

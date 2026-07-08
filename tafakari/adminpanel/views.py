@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from accounts.models import CustomUser
@@ -372,9 +372,22 @@ class GetAllUsersView(APIView):
 
     def get(self, request):
         users = CustomUser.objects.all()
-        paginated_users = self.pagination_class().paginate_queryset(users, request)
+
+        search = request.query_params.get('search')
+        if search:
+            users = users.filter(
+                Q(full_name__icontains=search) | Q(email__icontains=search)
+            )
+
+        user_type = request.query_params.get('user_type')
+        if user_type and user_type != 'all':
+            users = users.filter(user_type=user_type)
+
+        users = users.order_by('-created_at')
+        paginator = self.pagination_class()
+        paginated_users = paginator.paginate_queryset(users, request)
         user_data = []
-        
+
         for user in paginated_users:
             user_data.append({
                 "user_id": str(user.id),
@@ -386,12 +399,8 @@ class GetAllUsersView(APIView):
                 "email_verified": user.email_verified,
                 "phone_verified": user.phone_verified,
             })
-        
-        return Response({
-            "message": "Users retrieved successfully",
-            "data": user_data, 
-            "status":status.HTTP_200_OK
-            })
+
+        return paginator.get_paginated_response(user_data)
 
 #delete user by email endpoint 
 class DeleteUserByEmailView(APIView):
