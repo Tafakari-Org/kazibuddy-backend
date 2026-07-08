@@ -15,6 +15,7 @@ from .serializers import (
     UpdateAssignmentMilestoneSerializer,
 )
 from applications.models import JobApplication
+from jobs.models import Job
 from utils.custom_pagination import CustomPagination
 from utils.views import send_otp_to_email
 from .tasks import notify_rejected_applicants
@@ -80,7 +81,8 @@ class ListCreateAssignmentView(APIView):
             with transaction.atomic():
                 assignment = serializer.save()
                 assignment.job.is_assigned = True
-                assignment.job.save(update_fields=['is_assigned'])
+                assignment.job.status = Job.Status.FILLED
+                assignment.job.save(update_fields=['is_assigned', 'status'])
 
                 # Accept the assigned worker's application
                 JobApplication.objects.filter(
@@ -233,7 +235,8 @@ class AssignmentDetailView(APIView):
 
             with transaction.atomic():
                 assignment.job.is_assigned = False
-                assignment.job.save(update_fields=['is_assigned'])
+                assignment.job.status = Job.Status.ACTIVE
+                assignment.job.save(update_fields=['is_assigned', 'status'])
                 assignment.delete()
 
             return Response({
