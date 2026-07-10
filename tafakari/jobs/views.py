@@ -639,13 +639,10 @@ class JobsByEmployerView(views.APIView):
                 jobs = Job.objects.filter(employer=employer_id, is_assigned=False)
                 paginated_jobs = paginator.paginate_queryset(jobs, request)
                 serializer = JobSerializer(paginated_jobs, many=True)
-                return Response(
-                    {
-                        "message": f"Jobs  retrieved successfully for employer {jobs[0].employer.full_name if jobs else 'Unknown'}",
-                        "data": serializer.data
-                    },
-                    status=200
-                )
+                return paginator.get_paginated_response({
+                    "message": f"Jobs  retrieved successfully for employer {jobs[0].employer.full_name if jobs else 'Unknown'}",
+                    "data": serializer.data
+                })
             except Job.DoesNotExist:
                 return Response({"error": "No jobs found for the given employer"}, status=404)
 
@@ -746,13 +743,10 @@ class ListJobsByCategoryView(views.APIView):
             jobs = category.jobs.filter(is_assigned=False)
             paginated_jobs = paginator.paginate_queryset(jobs, request)
             serializer = JobSerializer(paginated_jobs, many=True, context={'request': request})
-            return Response(
-                {
-                    "message": f"Jobs in category '{category.name}' retrieved successfully",
-                    "data": serializer.data
-                },
-                status=200
-            )
+            return paginator.get_paginated_response({
+                "message": f"Jobs in category '{category.name}' retrieved successfully",
+                "data": serializer.data
+            })
         except JobCategory.DoesNotExist:
             return Response({"error": "Category not found"}, status=404)
         

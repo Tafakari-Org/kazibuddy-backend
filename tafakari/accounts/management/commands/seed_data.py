@@ -1,27 +1,22 @@
 """
 Seed command — creates test users for local/staging development.
-
-
 Usage:
     python manage.py seed_data            # create all seed users
     python manage.py seed_data --flush    # delete seed users fir
     st, then recreate
-
 All seed accounts use the password:  Admin@1234
 Seed users are identified by emails ending in @tafakari.local — never use
 this domain in production.
-
 """
-
-
 from django.core.management.base import BaseCommand
+
 from django.db import transaction
+
 from accounts.models import CustomUser
 
 PASSWORD = "Admin@1234"
 
 SEED_DOMAIN = "@tafakari.local"
-
 
 SEED_USERS = [
     # ── super admins ──────────────────────────────────────────────────────────
