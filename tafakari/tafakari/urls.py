@@ -43,6 +43,7 @@ urlpatterns = [
     path('api/adminpanel/', include('adminpanel.urls')),
     path('api/assignments/', include('assignments.urls')),
     path('api/documents/', include('documents.urls')),
+    path('api/notifications/', include('notifications.urls')),
 
     # Media file serving (works with daphne/ASGI too)
     re_path(r'^media/(?P<path>.*)$', serve_media, name='serve-media'),
