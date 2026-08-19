@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from accounts.models import CustomUser
+from documents.serializers import UserDocumentSerializer
 
 
 class ApproveUserSerializer(serializers.ModelSerializer):
@@ -13,6 +14,21 @@ class UserStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['id', 'full_name', 'phone_number', 'email', 'is_active', 'is_verified']
+
+
+class UserDetailSerializer(serializers.ModelSerializer):
+    """Full account detail + supporting documents, for the admin approve-users detail view."""
+    documents = UserDocumentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = CustomUser
+        fields = [
+            'id', 'full_name', 'username', 'email', 'phone_number', 'user_type',
+            'profile_photo_url', 'is_active', 'is_verified', 'email_verified',
+            'phone_verified', 'is_oauth_user', 'created_at', 'last_login',
+            'documents',
+        ]
+        read_only_fields = fields
 
 
 # ---------------------------------------------------------------------------

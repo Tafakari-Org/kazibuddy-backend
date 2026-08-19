@@ -1,9 +1,8 @@
 from django.db import models
+from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
 import uuid
-from workers.models import WorkerProfile
-from employers.models import EmployerProfile
 from skills.models import Skill
 # Signal to keep search_vector in sync with title/description
 from django.db.models.signals import post_save
@@ -57,7 +56,7 @@ class Job(models.Model):
         INVITED_ONLY = 'invited_only', 'Invited Only'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    employer = models.ForeignKey(EmployerProfile, on_delete=models.CASCADE, related_name='jobs')
+    employer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='jobs')
     category = models.ForeignKey(JobCategory, null=True, on_delete=models.SET_NULL, related_name='jobs')
     title = models.CharField(max_length=255)
     description = models.TextField()

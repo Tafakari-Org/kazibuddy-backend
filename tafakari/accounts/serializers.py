@@ -14,21 +14,16 @@ logger = get_logger(__name__)
 
 class RegisterUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
-    
 
     class Meta:
         model = CustomUser
-        fields = ['phone_number', 'email', 'password', 'user_type', 'full_name','username']
-        
-
-    
+        fields = ['phone_number', 'email', 'password', 'full_name', 'username']
 
     def create(self, validated_data):
         password = validated_data.pop('password')
-        # Atomic: user creation + password set must succeed or fail together
         logger.debug(f"Creating new user with email: {validated_data.get('email')}")
         with transaction.atomic():
-            user = CustomUser.objects.create_user(**validated_data)
+            user = CustomUser.objects.create_user(user_type='user', **validated_data)
             user.set_password(password)
             user.save()
         logger.info(f"Successfully created user ID: {user.id}")
@@ -83,17 +78,17 @@ class CustomRegisterSerializer(RegisterSerializer):
 class GoogleOAuthUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['email', 'user_type', 'full_name', 'profile_photo_url']
-    
+        fields = ['email', 'full_name', 'profile_photo_url']
+
     def create(self, validated_data):
-        # Atomic: OAuth user creation + flag updates must succeed or fail together
         email = validated_data.get('email')
         logger.debug(f"Creating new Google OAuth user: {email}")
         with transaction.atomic():
             user = CustomUser.objects.create_user(
                 email=validated_data['email'],
-                phone_number=None,  # No phone number for OAuth users
+                phone_number=None,
                 password=None,
+                user_type='user',
                 **{k: v for k, v in validated_data.items() if k != 'email'}
             )
             user.set_unusable_password()
