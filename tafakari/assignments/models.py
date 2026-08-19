@@ -1,15 +1,14 @@
 from django.db import models
+from django.conf import settings
 import uuid
 from jobs.models import Job
-from workers.models import WorkerProfile
-from employers.models import EmployerProfile
 
 
 class Assignment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     job = models.OneToOneField(Job, on_delete=models.CASCADE, related_name='assignment')
-    worker = models.ForeignKey(WorkerProfile, on_delete=models.CASCADE, related_name='assignments')
-    employer = models.ForeignKey(EmployerProfile, on_delete=models.CASCADE, related_name='assignments')
+    worker = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='worker_assignments')
+    employer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='employer_assignments')
     worker_started_at = models.DateTimeField(blank=True, null=True)
     worker_completed_at = models.DateTimeField(blank=True, null=True)
     employer_approved_at = models.DateTimeField(blank=True, null=True)
@@ -23,7 +22,7 @@ class Assignment(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.job.title} → {self.worker.user.full_name}"
+        return f"{self.job.title} → {self.worker.full_name}"
 
 
 class AssignmentCheckin(models.Model):
@@ -36,7 +35,7 @@ class AssignmentCheckin(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='checkins')
-    worker = models.ForeignKey(WorkerProfile, on_delete=models.CASCADE, related_name='checkins')
+    worker = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='assignment_checkins')
     checkin_type = models.CharField(max_length=10, choices=CHECKIN_TYPE_CHOICES)
     location = models.CharField(max_length=255, blank=True, null=True)
     location_text = models.CharField(max_length=255, blank=True, null=True)
@@ -45,7 +44,7 @@ class AssignmentCheckin(models.Model):
     checkin_time = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.worker.user.full_name} — {self.checkin_type} at {self.checkin_time}"
+        return f"{self.worker.full_name} — {self.checkin_type} at {self.checkin_time}"
 
 
 class AssignmentMilestone(models.Model):

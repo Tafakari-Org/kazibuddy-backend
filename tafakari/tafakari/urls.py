@@ -34,8 +34,6 @@ urlpatterns = [
     path('api/v1/auth/google/callback/', GoogleLoginCallback.as_view(), name='google_callback'),
     # Include the URLs from the workers app
     path('api/workers/', include('workers.urls')),
-    # Include the URLs from the employers app
-    path('api/employers/', include('employers.urls')),
     # Include the URLs from the jobs app
     path('api/jobs/', include('jobs.urls')),
     # Include the URLs from the skills app
@@ -44,6 +42,7 @@ urlpatterns = [
     path('api/messages/', include('messaging.urls')),
     path('api/adminpanel/', include('adminpanel.urls')),
     path('api/assignments/', include('assignments.urls')),
+    path('api/documents/', include('documents.urls')),
 
     # Media file serving (works with daphne/ASGI too)
     re_path(r'^media/(?P<path>.*)$', serve_media, name='serve-media'),

@@ -11,9 +11,12 @@ echo "Starting deployment..."
 # Navigate to project directory
 cd $PROJECT_DIR
 
-# Pull latest changes
-echo "Pulling latest changes..."
-git pull origin deployment
+# Sync to the exact state of origin/deployment — a deployment checkout
+# should never have local commits to merge, so always hard-reset rather
+# than pull (which fails outright if history was ever rewritten upstream).
+echo "Syncing to latest origin/deployment..."
+git fetch origin deployment
+git reset --hard origin/deployment
 
 # Check if .env.prod exists
 if [ ! -f "$ENV_FILE" ]; then
@@ -35,8 +38,8 @@ echo "Building and restarting containers..."
 docker compose -f docker-compose.prod.yml up -d --build
 
 # Run migrations
-# echo "Running database migrations..."
-# docker compose -f docker-compose.prod.yml exec web python /app/tafakari/manage.py migrate --noinput
+echo "Running database migrations..."
+docker compose -f docker-compose.prod.yml exec web python /app/tafakari/manage.py migrate --noinput
 
 # Collect static files
 echo "Collecting static files..."

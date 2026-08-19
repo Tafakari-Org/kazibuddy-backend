@@ -18,7 +18,7 @@ class FileUploadService(FileUploadManagerService):
 
     # ── Allowed types & size limits ────────────────────────────────────────────────
     ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
-    ALLOWED_DOCUMENT_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'}
+    ALLOWED_DOCUMENT_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.jpg', '.jpeg', '.png'}
     MAX_IMAGE_SIZE = 5 * 1024 * 1024        # 5 MB
     MAX_DOCUMENT_SIZE = 10 * 1024 * 1024    # 10 MB
 
