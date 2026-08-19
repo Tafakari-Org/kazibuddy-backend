@@ -4,7 +4,6 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from jobs.models import Job
 from .models import JobApplication
-from workers.models import WorkerProfile
 from rest_framework.permissions import IsAuthenticated,IsAdminUser
 from rest_framework import status
 from .utils import check_if_user_isOwner
@@ -54,13 +53,7 @@ class CreateJobApplicationView(APIView):
 
             # Check if the worker has already applied for the job
             worker = request.user
-            worker_profile = WorkerProfile.objects.filter(user=worker).first()
-            if not worker_profile:
-                return Response({
-                    'status': 'error',
-                    'message': 'Worker profile not found,you need to create a  profile before applying for jobs.'
-                }, status=404)
-            if JobApplication.objects.filter(job=job, worker=worker_profile).exists():
+            if JobApplication.objects.filter(job=job, worker=worker).exists():
                 return Response({
                     'status': 'error',
                     'message': 'You have already applied for this job.'
@@ -68,22 +61,22 @@ class CreateJobApplicationView(APIView):
 
             serializer = self.serializer_class(data=request.data, context={'request': request})
             if serializer.is_valid():
-                application = serializer.save(job=job, worker=worker_profile)
-                
+                application = serializer.save(job=job, worker=worker)
+
                 # Send notification for application creation
                 # Notify the applicant (worker)
                 send_otp_to_email(
-                    user=request.user, 
-                    otp_type='job_notification', 
+                    user=request.user,
+                    otp_type='job_notification',
                     action_type='application_created',
                     job_title=job.title,
                 )
-                
+
                 # Optionally notify the employer as well (customer/employer who posted the job)
-                if job.employer and job.employer.user:
+                if job.employer:
                     send_otp_to_email(
-                        user=job.employer.user, 
-                        otp_type='job_notification', 
+                        user=job.employer,
+                        otp_type='job_notification',
                         action_type='new_application', # I should add this too
                         job_title=job.title,
                         applicant_name=request.user.full_name
@@ -95,8 +88,8 @@ class CreateJobApplicationView(APIView):
                     'application_id': str(application.id),
                     'user': {
                         'id': str(application.worker.id),
-                        'name': application.worker.user.full_name,
-                        'email': application.worker.user.email
+                        'name': application.worker.full_name,
+                        'email': application.worker.email
                     }
                 }, status=201)
             return Response({
@@ -115,22 +108,17 @@ class MyJobApplicationListView(APIView):
 
 
     def get(self, request, *args, **kwargs):
-        worker_profile = WorkerProfile.objects.filter(user=request.user).first()
-        if not worker_profile:
-            return Response({
-                'status': 'error',
-                'message': 'Worker profile not found.'
-            }, status=404)
+        worker = request.user
         #convert to lowercase and strip whitespace
         status = request.query_params.get('status', '').lower().strip()
         if status == 'accepted':
-            applications = JobApplication.objects.filter(worker=worker_profile, status='accepted').order_by('-applied_at')
+            applications = JobApplication.objects.filter(worker=worker, status='accepted').order_by('-applied_at')
         elif status == 'rejected':
-            applications = JobApplication.objects.filter(worker=worker_profile, status='rejected').order_by('-applied_at')
+            applications = JobApplication.objects.filter(worker=worker, status='rejected').order_by('-applied_at')
         elif status == 'pending':
-            applications = JobApplication.objects.filter(worker=worker_profile, status='pending').order_by('-applied_at')
+            applications = JobApplication.objects.filter(worker=worker, status='pending').order_by('-applied_at')
         else:
-            applications = JobApplication.objects.filter(worker=worker_profile).order_by('-applied_at')
+            applications = JobApplication.objects.filter(worker=worker).order_by('-applied_at')
         paginator = self.pagination_class()
         paginated_applications = paginator.paginate_queryset(applications, request)
         serializer = self.serializer_class(paginated_applications, many=True)
@@ -288,7 +276,6 @@ class AllJobApplicationListView(APIView):
                 'job__employer',
                 'job__category',
                 'worker',
-                'worker__user',  # adjust to match your WorkerProfile -> User relation
             )\
             .prefetch_related(
                 'job__job_skills',
@@ -315,14 +302,17 @@ class RejectedJobApplicationListView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            applications = JobApplication.objects.filter(status='rejected')
+            applications = JobApplication.objects.filter(status='rejected')\
+                .select_related('job','worker')\
+                .prefetch_related('job__job_skills','job__category', 'job__images', 'job__attachments')\
+                .order_by('-applied_at')
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
-            serializer = self.serializer_class(paginated_applications, many=True)
-            return Response({
-            'status': 'success',
-            'data': serializer.data
-            }, status=200)
+            serializer = self.serializer_class(paginated_applications, many=True, context={'request': request})
+            return paginator.get_paginated_response({
+                'status': 'success',
+                'data': serializer.data
+            })
         except Exception as e:
             return Response({
                 'status': 'error',
@@ -340,15 +330,15 @@ class PendingJobApplicationListView(APIView):
         try:
             applications = JobApplication.objects.filter(status='pending')\
                 .select_related('job','worker')\
-                .prefetch_related('job__job_skills','job__category', 'job__images','job__attachments', 'worker__user')\
+                .prefetch_related('job__job_skills','job__category', 'job__images','job__attachments')\
                 .order_by('-applied_at')
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
-            serializer = self.serializer_class(paginated_applications, many=True)
-            return Response({
-            'status': 'success',
-            'data': serializer.data
-            }, status=200)
+            serializer = self.serializer_class(paginated_applications, many=True, context={'request': request})
+            return paginator.get_paginated_response({
+                'status': 'success',
+                'data': serializer.data
+            })
         except Exception as e:
             return Response({
                 'status': 'error',
@@ -366,15 +356,15 @@ class AcceptedJobApplicationListView(APIView):
         try:
             applications = JobApplication.objects.filter(status='accepted')\
                 .select_related('job','worker')\
-                .prefetch_related('job__job_skills','job__category', 'job__images', 'job__attachments', 'worker__user')\
+                .prefetch_related('job__job_skills','job__category', 'job__images', 'job__attachments')\
                 .order_by('-applied_at')
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
-            serializer = self.serializer_class(paginated_applications, many=True)
-            return Response({
-            'status': 'success',
-            'data': serializer.data
-            }, status=200)
+            serializer = self.serializer_class(paginated_applications, many=True, context={'request': request})
+            return paginator.get_paginated_response({
+                'status': 'success',
+                'data': serializer.data
+            })
         except Exception as e:
             return Response({
                 'status': 'error',
@@ -405,7 +395,7 @@ class UserRejectedApplicationsView(APIView):
             
             applications = JobApplication.objects.filter(worker=worker_id, status='rejected')\
                 .select_related('job','worker')\
-                .prefetch_related('job__job_skills','job__category', 'job__images', 'job__attachments', 'worker__user')\
+                .prefetch_related('job__job_skills','job__category', 'job__images', 'job__attachments')\
                 .order_by('-applied_at')
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
@@ -477,7 +467,7 @@ class JobApplicationWorkerView(APIView):
             }, status=400)
 
         try:
-            applications = JobApplication.objects.filter(job_id=job_id).select_related('worker').prefetch_related('worker__user')
+            applications = JobApplication.objects.filter(job_id=job_id).select_related('worker')
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
             serializer = self.serializer_class(paginated_applications, many=True)

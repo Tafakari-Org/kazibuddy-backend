@@ -1,8 +1,7 @@
 from django.db import models
+from django.conf import settings
 import uuid
 from jobs.models import Job
-from workers.models import WorkerProfile
-from employers.models import EmployerProfile
 
 # Create your models here.
 class JobApplication(models.Model):
@@ -16,7 +15,7 @@ class JobApplication(models.Model):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     job = models.ForeignKey(Job, on_delete=models.CASCADE)
-    worker = models.ForeignKey(WorkerProfile, on_delete=models.CASCADE)
+    worker = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     cover_letter = models.TextField(blank=True, null=True)
     proposed_rate = models.DecimalField(max_digits=10, decimal_places=2)
     availability_start = models.DateField()
@@ -42,8 +41,8 @@ class WorkerInvitation(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     job = models.ForeignKey(Job, on_delete=models.CASCADE)
-    worker = models.ForeignKey(WorkerProfile, on_delete=models.CASCADE)
-    employer = models.ForeignKey(EmployerProfile, on_delete=models.CASCADE)
+    worker = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='worker_invitations')
+    employer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='employer_invitations')
     message = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='sent')
     expires_at = models.DateTimeField()
