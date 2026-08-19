@@ -32,7 +32,7 @@ def notify_rejected_applicants(self, job_id: str, assigned_worker_id: str):
             JobApplication.objects
             .filter(job_id=job_id, status='rejected')
             .exclude(worker_id=assigned_worker_id)
-            .select_related('worker__user', 'job')
+            .select_related('worker', 'job')
         )
 
         if not rejected_apps.exists():
@@ -48,7 +48,7 @@ def notify_rejected_applicants(self, job_id: str, assigned_worker_id: str):
             worker_id = str(application.worker_id)
             try:
                 send_otp_to_email(
-                    user=application.worker.user,
+                    user=application.worker,
                     otp_type='application_notification',
                     action_type='application_rejected',
                     job_title=application.job.title,

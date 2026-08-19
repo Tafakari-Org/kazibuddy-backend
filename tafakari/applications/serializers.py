@@ -1,12 +1,12 @@
 from .models import JobApplication, WorkerInvitation
 from jobs.serializers import JobSerializer
-from workers.serializers import WorkerProfileSerializer
+from accounts.serializers import UserSerializer
 
 from rest_framework import serializers
 
 class JobApplicationSerializer(serializers.ModelSerializer):
     job = JobSerializer(read_only=True)
-    worker = WorkerProfileSerializer(read_only=True)
+    worker = UserSerializer(read_only=True)
     class Meta:
         model = JobApplication
         fields = '__all__'
@@ -39,11 +39,11 @@ class JobApplicationListSerializer(serializers.ModelSerializer):
     job_budget_max = serializers.DecimalField(source='job.budget_max', max_digits=10, decimal_places=2, read_only=True)
 
     employer_id = serializers.UUIDField(source='job.employer.id', read_only=True)
-    employer_name = serializers.CharField(source='job.employer.company_name', read_only=True)
+    employer_name = serializers.CharField(source='job.employer.full_name', read_only=True)
 
-    # Worker fields — flat, no nested WorkerProfileSerializer
+    # Worker fields — flat, no nested serializer
     worker_id = serializers.UUIDField(source='worker.id', read_only=True)
-    worker_name = serializers.CharField(source='worker.user.get_full_name', read_only=True)  # adjust as needed
+    worker_name = serializers.CharField(source='worker.full_name', read_only=True)
 
     class Meta:
         model = JobApplication
@@ -56,7 +56,7 @@ class JobApplicationListSerializer(serializers.ModelSerializer):
 
 #list workers applied to a job
 class JobApplicationWorkerSerializer(serializers.ModelSerializer):
-    worker = WorkerProfileSerializer(read_only=True)
+    worker = UserSerializer(read_only=True)
 
     class Meta:
         model = JobApplication

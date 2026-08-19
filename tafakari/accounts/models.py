@@ -56,9 +56,7 @@ class CustomUserManager(BaseUserManager):
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     USER_TYPES = [
-        ('worker', 'Worker'),
-        ('employer', 'Employer'),
-        ('both', 'Both'),
+        ('user', 'User'),
         ('admin', 'Admin'),
         ('super_admin', 'Super Admin'),
     ]
@@ -68,7 +66,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     phone_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
     email = models.EmailField(max_length=255, unique=True, null=True, blank=True)
     password = models.CharField(max_length=255)  # Handled by AbstractBaseUser
-    user_type = models.CharField(max_length=50, choices=USER_TYPES)
+    user_type = models.CharField(max_length=50, choices=USER_TYPES, default='user')
     full_name = models.CharField(max_length=255)
     profile_photo_url = models.URLField(max_length=500, null=True, blank=True)
     is_active = models.BooleanField(default=True)
