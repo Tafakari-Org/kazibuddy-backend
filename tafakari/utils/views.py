@@ -367,6 +367,77 @@ def send_account_approved_email(user, open_jobs=0, missing=None):
         logger.error(f"send_account_approved_email error: {str(e)}")
 
 
+def _job_summary(job):
+    """Plain, display-ready job facts for emails."""
+    def money(v):
+        return f"{v:,.0f}" if v is not None else ""
+
+    if job.budget_min is not None and job.budget_max is not None and job.budget_max != job.budget_min:
+        budget = f"KES {money(job.budget_min)} – {money(job.budget_max)}"
+    elif job.budget_min is not None or job.budget_max is not None:
+        budget = f"KES {money(job.budget_min if job.budget_min is not None else job.budget_max)}"
+    else:
+        budget = ""
+    if budget and job.payment_type:
+        budget += f" · {job.get_payment_type_display()}"
+
+    fmt = lambda d: d.strftime('%d %b %Y') if d else ""
+    dates = " → ".join(x for x in (fmt(job.start_date), fmt(job.end_date)) if x)
+
+    attachments = []
+    images = job.images.count()
+    files = job.attachments.count()
+    if images:
+        attachments.append(f"{images} photo{'s' if images != 1 else ''}")
+    if files:
+        attachments.append(f"{files} document{'s' if files != 1 else ''}")
+
+    return {
+        'title': job.title,
+        'category': getattr(job.category, 'name', '') if job.category_id else '',
+        'urgency': job.get_urgency_level_display() if getattr(job, 'urgency_level', None) else '',
+        'location': job.location_text,
+        'budget': budget,
+        'job_type': job.get_job_type_display() if job.job_type else '',
+        'dates': dates,
+        'max_applicants': job.max_applicants,
+        'attachments': ", ".join(attachments),
+        'is_featured': job.is_featured,
+    }
+
+
+def build_job_approved_email(job):
+    """Return (subject, html) for the 'your job is live' email to the job poster."""
+    base = _frontend_base()
+    poster = job.employer
+    full_name = getattr(poster, 'full_name', '') or poster.email
+    context = {
+        'full_name': full_name,
+        'first_name': full_name.split()[0] if full_name else 'there',
+        'job': _job_summary(job),
+        'approved_on': timezone.localtime().strftime('%d %B %Y'),
+        'my_jobs_url': f"{base}/dashboard?tab=my-jobs",
+        'post_job_url': f"{base}/dashboard?tab=post-job",
+        'support_email': SUPPORT_EMAIL,
+    }
+    html = render_to_string('email_templates/job_approved_email.html', context)
+    return f"Your job “{job.title}” is now live on KaziBuddy", html
+
+
+def send_job_approved_email(job):
+    """Tell the poster their job was approved. Never raises."""
+    try:
+        poster = job.employer
+        if not poster or not poster.email:
+            logger.error(f"Job {job.id} has no poster email — cannot send approval email")
+            return
+        subject, html_message = build_job_approved_email(job)
+        send_email_async(subject, html_message, [poster.email])
+        logger.info(f"Job approval email queued for {poster.email} (job {job.id})")
+    except Exception as e:
+        logger.error(f"send_job_approved_email error: {str(e)}")
+
+
 def send_admin_invite_email(user, invite_link: str, invited_by=None):
     """
     Send an invite email to a newly created (dormant) admin account.

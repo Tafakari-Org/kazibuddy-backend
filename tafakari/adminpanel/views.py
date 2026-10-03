@@ -28,6 +28,7 @@ from applications.serializers import JobApplicationSerializer, JobApplicationLis
 from rest_framework.permissions import IsAdminUser
 from utils.views import (
     send_otp_to_email, send_admin_invite_email, send_account_rejected_email, send_account_approved_email,
+    send_job_approved_email,
 )
 from accounts.rejection import REJECTION_REASONS, reason_labels, reason_fixes
 from utils.custom_error import error_response
@@ -308,14 +309,8 @@ class ApproveJobView(APIView):
         log_action(request, AuditLog.Action.JOB_APPROVED, AuditLog.TargetType.JOB, job.id, job.title,
                    {"employer": getattr(job.employer, "email", None)})
         
-        # Notify employer of job approval
-        if job.employer:
-            send_otp_to_email(
-                user=job.employer,
-                otp_type='job_notification',
-                action_type='admin_job_approved',
-                job_title=job.title
-            )
+        # Tell the poster their job is live
+        send_job_approved_email(job)
         
         return Response(
             {
