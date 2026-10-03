@@ -1,200 +1,202 @@
-# KaziBuddy – Django Backend
+# KaziBuddy — Backend
 
-**KaziBuddy** is a web-based platform that connects semi-skilled workers with potential employers. It allows users to register as either a worker or an employer, post jobs, apply for assignments, manage payments, track job progress, and build a reliable rating and review system.
+Django REST API for **KaziBuddy**, a job marketplace that connects semi-skilled workers with employers. Users register, get verified by an admin, post or apply for jobs, track assignments, and message each other in real time.
 
----
-
-## 📦 Project Structure
-
-apps:
-  accounts: Handles user authentication, registration, OTP, and core user model
-  workers: Manages worker-specific profiles, skills, availability, and ID verification
-  employers: Manages employer profiles, verification documents, and contact info
-  jobs: Handles job creation, listing, and filtering by employers
-  applications: Manages job applications submitted by workers
-  assignments: Tracks the lifecycle of job assignments including progress and check-ins
-  ratings: Manages post-job reviews and reputation scoring for users
-  adminpanel: Provides admin features for approving/rejecting users and content
-  analytics: Tracks usage, skills demand, and regional trends for admins
-  utils: Shared utility functions like OTP generation, validation, and file uploads
-
-
-## 🚀 Features
-
-- User registration via phone/email with OTP verification
-- Worker and employer profiles with document validation
-- Job posting and worker application system
-- Assignment lifecycle tracking (check-ins, updates, etc.)
-- Secure in-app payment with escrow
-- Ratings and review system post-completion
-- Admin dashboard for vetting and analytics
-- Optional: In-app messaging, learning modules, referrals
+Frontend: [Tafakari-Org/kazibuddy-frontend](https://github.com/Tafakari-Org/kazibuddy-frontend)
 
 ---
 
-## 🔧 Tech Stack
+## Tech stack
 
-- **Backend Framework:** Django & Django REST Framework  
-- **Authentication:** Custom JWT (djangorestframework-simplejwt)  
-- **Database:** PostgreSQL  
-- **Messaging & Notifications:** Optional channels / Celery (future)  
-- **Deployment:** Docker (optional), Render/Heroku/AWS  
-- **CI/CD:** GitHub Actions (optional)
-
----
-
-## 🛠️ Setup Instructions
-
-project_setup:
-  description: Setup guide for the KaziBuddy Django backend project
-
-  prerequisites:
-    - Python 3.8+
-    - Git
-    - PostgreSQL
-    - pip
-
-  steps:
-    - step: Clone the project
-      command: git clone https://github.com/yourusername/kazibuddy-backend.git
-
-    - step: Navigate to the project directory
-      command: cd kazibuddy-backend
-
-    - step: Create a virtual environment
-      command: python -m venv venv
-
-    - step: Activate the virtual environment (Linux/macOS)
-      command: source venv/bin/activate
-
-    - step: Activate the virtual environment (Windows)
-      command: venv\Scripts\activate
-
-    - step: Upgrade pip
-      command: pip install --upgrade pip
-
-    - step: Install required packages
-      command: pip install -r requirements.txt
-
-    - step: Create .env file and set environment variables
-      example:
-        SECRET_KEY: your-django-secret-key
-        DEBUG: "True"
-        DATABASE_URL: postgres://user:password@localhost:5432/kazibuddy
-
-    - step: Apply database migrations
-      command: python manage.py migrate
-
-    - step: Create superuser (optional)
-      command: python manage.py createsuperuser
-
-    - step: Run the development server
-      command: python manage.py runserver
-
-    - step: Access the application
-      url: http://127.0.0.1:8000/
-
-    - step: Access API documentation (if using drf-yasg)
-      url: http://127.0.0.1:8000/docs/
+| Area | Tooling |
+|---|---|
+| Framework | Django 5.2, Django REST Framework |
+| Auth | JWT (`djangorestframework-simplejwt`), Google OAuth (`dj-rest-auth` + `django-allauth`), email OTP verification |
+| Database | PostgreSQL 17 |
+| Real-time | Django Channels + Redis (WebSocket messaging), served by Daphne (ASGI) |
+| Background jobs | Celery (Redis broker) |
+| File storage | Local disk under `tafakari/uploads/`, served at `/media/` |
+| Runtime | Docker / Docker Compose, Python 3.13 image |
 
 ---
 
-## 🐳 Docker Setup (Recommended)
+## Project layout
 
-### Prerequisites
-- Docker
-- Docker Compose
+```
+kazibuddy-backend/
+├── Dockerfile
+├── docker-compose.yml        # local development stack
+├── docker-compose.prod.yml   # production stack
+├── Makefile                  # shortcuts for common tasks (run `make help`)
+├── entrypoint.sh
+├── scripts/deploy.sh         # production deploy script (run by CI)
+├── .github/workflows/        # CI: deploy on push to `deployment`
+└── tafakari/                 # Django project root (manage.py lives here)
+    ├── tafakari/             # settings, urls, asgi, celery config
+    ├── accounts/             # custom user model, registration, OTP, login, profile
+    ├── workers/              # worker profile models (API routes currently removed)
+    ├── employers/            # employer profile models
+    ├── jobs/                 # job posting, listing, images and attachments
+    ├── applications/         # job applications
+    ├── assignments/          # assigned jobs and their lifecycle
+    ├── skills/               # skills and categories
+    ├── documents/            # user documents (upload, list, download, delete)
+    ├── messaging/            # real-time chat (Channels consumers)
+    ├── ratings/              # reviews and ratings
+    ├── adminpanel/           # admin approval of users and jobs
+    ├── analytics/            # admin analytics
+    ├── payments/             # payments (work in progress, not yet enabled)
+    └── utils/                # shared helpers (file uploads, email, OTP)
+```
 
-### Quick Start
+---
 
-1. **Clone the repository**
+## API overview
+
+All endpoints are under `/api/`. Authenticated endpoints expect `Authorization: Bearer <access token>`.
+
+| Prefix | Purpose |
+|---|---|
+| `/api/accounts/` | Register, verify email (OTP), log in, refresh tokens, password reset, own profile (`me/`) |
+| `/api/v1/auth/` | dj-rest-auth endpoints and Google OAuth login/callback |
+| `/api/jobs/` | Jobs: create, list, search, update, delete |
+| `/api/applications/` | Apply to jobs, review applications |
+| `/api/assignments/` | Assigned jobs |
+| `/api/skills/` | Skills and categories |
+| `/api/documents/` | Current user's documents (see below) |
+| `/api/messages/` | Conversations and messages |
+| `ws/thread/<thread_id>/` | WebSocket for live chat in a thread |
+| `/api/adminpanel/` | Admin-only user and job moderation |
+| `/media/<path>` | Uploaded files |
+| `/admin/` | Django admin |
+
+### Documents
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/documents/mine/` | List your documents and storage usage |
+| `POST` | `/api/documents/mine/` | Upload one document (`file` field, multipart) |
+| `DELETE` | `/api/documents/mine/<id>/` | Delete one of your documents |
+| `GET` | `/api/documents/mine/<id>/download/` | Download one of your documents (original filename) |
+
+Limits:
+- **Registration:** up to **10** supporting documents (`academic_documents`), max **5 MB** each.
+- **Profile uploads:** max **5 MB** per file, **50 MB** total per user.
+- Allowed types: PDF, Word, Excel, TXT, JPG/PNG.
+
+---
+
+## Getting started (Docker, recommended)
+
+**Prerequisites:** Docker and Docker Compose.
+
+1. Clone the repo:
    ```bash
-   git clone https://github.com/yourusername/kazibuddy-backend.git
+   git clone https://github.com/Tafakari-Org/kazibuddy-backend.git
    cd kazibuddy-backend
    ```
-
-2. **Create environment file**
+2. Create the env file the local stack reads (`tafakari/.env`), using `.env.docker.example` as the template:
    ```bash
-   cp .env.docker.example .env.docker
+   cp .env.docker.example tafakari/.env
    ```
-   Edit `.env.docker` and update the following:
-   - `SECRET_KEY` - Generate a new Django secret key
-   - `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`
-   - `SUPABASE_URL` and `SUPABASE_KEY`
-   - `EMAIL_HOST_USER` and `EMAIL_HOST_PASSWORD`
-   - Optionally set `DJANGO_SUPERUSER_*` variables for automatic admin creation
-
-3. **Build and start services**
+   Fill in at least `SECRET_KEY`, the database credentials, email settings and Google OAuth keys (see [Environment variables](#environment-variables)).
+3. Start everything:
    ```bash
-   docker-compose up --build
+   make up        # or: docker compose up -d
+   make migrate
    ```
+4. Open:
+   - API: http://localhost:8000/api/
+   - Django admin: http://localhost:8000/admin/
 
-4. **Access the application**
-   - API: http://localhost:8000
-   - Admin: http://localhost:8000/admin
-
-### Docker Commands
-
-**Start services in background:**
+Optional sample data:
 ```bash
-docker-compose up -d
+make seed-all   # seed users, then seed jobs
 ```
 
-**View logs:**
+### Local services
+
+| Service | Container | Port |
+|---|---|---|
+| `web` | Django on Daphne | `8000` |
+| `celery` | Celery worker | — |
+| `db` | PostgreSQL 17 | `5432` |
+| `redis` | Redis | `6380` on host → `6379` in container |
+
+### Useful `make` targets
+
+| Command | What it does |
+|---|---|
+| `make up` / `make down` | Start / stop all services |
+| `make restart` | Restart `web` and `celery` after code changes |
+| `make rebuild` | Rebuild images and restart |
+| `make logs`, `make logs-web`, `make logs-celery` | Tail logs |
+| `make migrate` | Apply migrations |
+| `make migrations APP=<app>` | Create migrations |
+| `make shell` / `make bash` / `make db-shell` | Django shell / container shell / psql |
+| `make seed`, `make seed-jobs`, `make seed-all` (`-flush` variants) | Seed sample data |
+| `make test` | Run the Django test suite |
+| `make lint` | Run flake8 |
+
+Run `make help` for the full list.
+
+---
+
+## Getting started (without Docker)
+
+You need Python 3.12+, PostgreSQL and Redis running locally.
+
 ```bash
-docker-compose logs -f web
+python -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+cd tafakari
+# create tafakari/.env (see Environment variables)
+python manage.py migrate
+python manage.py createsuperuser  # optional
+daphne -b 0.0.0.0 -p 8000 tafakari.asgi:application   # or: python manage.py runserver
 ```
 
-**Run migrations:**
+In another terminal, start the Celery worker:
 ```bash
-docker-compose exec web python tafakari/manage.py migrate
+cd tafakari && celery -A tafakari worker --loglevel=info
 ```
 
-**Create superuser manually:**
+---
+
+## Environment variables
+
+Templates: `.env.docker.example` (local) and `.env.prod.example` (production). Never commit real values.
+
+| Group | Variables |
+|---|---|
+| Django | `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `SITE_ID`, `FRONTEND_URL` |
+| Database | `DATABASE_URL` or `POSTGRES_NAME` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `DB_HOST` / `DB_PORT` |
+| Redis / Celery | `REDIS_HOST`, `REDIS_PORT`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` |
+| CORS / CSRF | `CORS_ALLOWED_ORIGINS`, `CORS_ALLOW_ALL_ORIGINS`, `CORS_ALLOW_CREDENTIALS`, `CSRF_TRUSTED_ORIGINS` |
+| Email (OTP, notifications) | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_SSL` (`True` for port 465; `False` switches to STARTTLS for 587) |
+| Google OAuth | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_CALLBACK_URL` |
+| Supabase | `SUPABASE_URL`, `SUPABASE_KEY` |
+
+---
+
+## Branches and deployment
+
+| Branch | Purpose |
+|---|---|
+| `deployment` | Production. Every push triggers the GitHub Actions workflow, which SSHes into the VPS and runs `scripts/deploy.sh` (rebuild containers, migrate, collect static). |
+| `main` | Default branch. |
+| `test`, feature branches | Work in progress; merged via pull request. |
+
+Because each push to `deployment` triggers a deploy, avoid pushing to it several times in quick succession. Overlapping deploys can fail with Docker container-name conflicts.
+
+---
+
+## Running tests
+
 ```bash
-docker-compose exec web python tafakari/manage.py createsuperuser
+make test
+# or, without Docker:
+cd tafakari && python manage.py test
 ```
-
-**Stop services:**
-```bash
-docker-compose down
-```
-
-**Stop and remove volumes (WARNING: deletes database):**
-```bash
-docker-compose down -v
-```
-
-**Rebuild after code changes:**
-```bash
-docker-compose up --build
-```
-
-### Services
-
-The Docker setup includes:
-- **web**: Django application (Daphne ASGI server) on port 8000
-- **db**: PostgreSQL 16 database on port 5432
-- **redis**: Redis 7 for Django Channels on port 6379
-
-### Troubleshooting
-
-**Database connection issues:**
-```bash
-docker-compose logs db
-docker-compose exec db pg_isready -U kazibuddy_user
-```
-
-**Redis connection issues:**
-```bash
-docker-compose logs redis
-docker-compose exec redis redis-cli ping
-```
-
-**Reset database:**
-```bash
-docker-compose down -v
-docker-compose up --build
-```
-
-# kazibuddy-backend
