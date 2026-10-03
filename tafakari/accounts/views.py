@@ -47,7 +47,8 @@ from utils.file_upload import FileUploadService
 from documents.models import UserDocument, DocumentType
 from django.contrib.auth.password_validation import validate_password as django_validate_password
 
-MAX_ACADEMIC_DOCUMENTS = 3
+MAX_ACADEMIC_DOCUMENTS = 10
+MAX_ACADEMIC_DOCUMENT_SIZE = 5 * 1024 * 1024  # 5 MB per document
 
 logger = get_logger(__name__)
 
@@ -137,6 +138,17 @@ class RegisterView(APIView):
                 {
                     "success": False,
                     "message": f"You can upload up to {MAX_ACADEMIC_DOCUMENTS} supporting documents.",
+                    "status_code": 400,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        oversized = next((d for d in academic_documents if d.size > MAX_ACADEMIC_DOCUMENT_SIZE), None)
+        if oversized:
+            return Response(
+                {
+                    "success": False,
+                    "message": f'"{oversized.name}" exceeds the 5 MB limit. Each document must be 5 MB or less.',
                     "status_code": 400,
                 },
                 status=status.HTTP_400_BAD_REQUEST,

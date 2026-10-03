@@ -10,7 +10,9 @@ this domain in production.
 """
 from django.core.management.base import BaseCommand
 
-from django.db import transaction
+
+from django.db import 
+
 
 from accounts.models import CustomUser
 
@@ -70,7 +72,7 @@ SEED_USERS = [
         "is_verified": True,
         "email_verified": True,
     },
-
+    
     {
         "email": "bob@tafakari.local",
         "full_name": "Bob Otieno",
