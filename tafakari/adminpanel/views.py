@@ -7,6 +7,8 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from accounts.models import CustomUser
+from documents.models import UserDocument
+from documents.views import document_file_response
 from jobs.models import Job
 from jobs.serializers import JobSerializer, JobListSerializer
 from .models import AdminInvite
@@ -284,6 +286,14 @@ class PendingUserDetailView(APIView):
             {"message": "User detail retrieved successfully", "data": serializer.data},
             status=status.HTTP_200_OK,
         )
+
+class AdminUserDocumentDownloadView(APIView):
+    """Stream any user's document so admins can review it before approving the user or assigning a job."""
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request, user_id, document_id):
+        document = get_object_or_404(UserDocument, pk=document_id, user_id=user_id)
+        return document_file_response(document)
 
 class UpdateJobApplicationStatusView(APIView):
     permission_classes = [permissions.IsAdminUser]

@@ -47,7 +47,10 @@ from utils.file_upload import FileUploadService
 from documents.models import UserDocument, DocumentType
 from django.contrib.auth.password_validation import validate_password as django_validate_password
 
-MAX_ACADEMIC_DOCUMENTS = 10
+from documents.views import MAX_DOCUMENTS_PER_USER
+
+# Registration can use the user's whole document allowance.
+MAX_ACADEMIC_DOCUMENTS = MAX_DOCUMENTS_PER_USER
 MAX_ACADEMIC_DOCUMENT_SIZE = 5 * 1024 * 1024  # 5 MB per document
 
 logger = get_logger(__name__)

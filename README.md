@@ -89,8 +89,10 @@ All endpoints are under `/api/`. Authenticated endpoints expect `Authorization: 
 | `POST` | `/api/documents/mine/` | Upload one document (`file` field, multipart) |
 | `DELETE` | `/api/documents/mine/<id>/` | Delete one of your documents |
 | `GET` | `/api/documents/mine/<id>/download/` | Download one of your documents (original filename) |
+| `GET` | `/api/adminpanel/users/<user_id>/documents/<id>/download/` | Admin only: stream any user's document for review before approval or job assignment |
 
 Limits:
+- **Per user:** at most **10 documents in total** (academic documents, images, anything else), counting both signup and profile uploads.
 - **Registration:** up to **10** supporting documents (`academic_documents`), max **5 MB** each.
 - **Profile uploads:** max **5 MB** per file, **50 MB** total per user.
 - Allowed types: PDF, Word, Excel, TXT, JPG/PNG.

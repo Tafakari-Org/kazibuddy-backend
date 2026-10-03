@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 MAX_PROFILE_STORAGE_BYTES = 50 * 1024 * 1024  # 50 MB
 # Per-file cap, matching registration (stricter than FileUploadService's 10MB).
 MAX_PROFILE_DOCUMENT_SIZE = 5 * 1024 * 1024  # 5 MB
+# Max number of documents (academic docs, images, etc.) a user can hold in total.
+MAX_DOCUMENTS_PER_USER = 10
 
 
 def _storage_used(user):
@@ -37,6 +39,8 @@ class MyDocumentsView(APIView):
             "message": "Documents retrieved successfully",
             "data": UserDocumentSerializer(documents, many=True).data,
             "storage": {
+                "count": documents.count(),
+                "max_count": MAX_DOCUMENTS_PER_USER,
                 "used_bytes": used,
                 "limit_bytes": MAX_PROFILE_STORAGE_BYTES,
                 "remaining_bytes": max(0, MAX_PROFILE_STORAGE_BYTES - used),
@@ -47,6 +51,12 @@ class MyDocumentsView(APIView):
         uploaded_file = request.FILES.get('file')
         if not uploaded_file:
             return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if UserDocument.objects.filter(user_id=request.user).count() >= MAX_DOCUMENTS_PER_USER:
+            return Response(
+                {"error": f"You can have at most {MAX_DOCUMENTS_PER_USER} documents. Delete one to upload another."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if uploaded_file.size > MAX_PROFILE_DOCUMENT_SIZE:
             return Response(
@@ -110,20 +120,24 @@ class MyDocumentDetailView(APIView):
         return Response({"message": "Document deleted successfully"}, status=status.HTTP_200_OK)
 
 
+def document_file_response(document):
+    """Stream a UserDocument's file from disk under its original filename."""
+    file_path = FileUploadService().path_for(document.file_url)
+    if not file_path or not os.path.isfile(file_path):
+        raise Http404("File not found")
+
+    return FileResponse(
+        open(file_path, 'rb'),
+        as_attachment=True,
+        filename=document.file_name,
+        content_type=document.file_type or 'application/octet-stream',
+    )
+
+
 class MyDocumentDownloadView(APIView):
     """Stream one of the requesting user's own attachments as a download."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, document_id):
         document = get_object_or_404(UserDocument, pk=document_id, user_id=request.user)
-
-        file_path = FileUploadService().path_for(document.file_url)
-        if not file_path or not os.path.isfile(file_path):
-            raise Http404("File not found")
-
-        return FileResponse(
-            open(file_path, 'rb'),
-            as_attachment=True,
-            filename=document.file_name,
-            content_type=document.file_type or 'application/octet-stream',
-        )
+        return document_file_response(document)
