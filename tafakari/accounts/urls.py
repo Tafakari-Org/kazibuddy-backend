@@ -1,4 +1,5 @@
 from django.urls import path
+from .dashboard import MyDashboardView
 from .views import (
     LoginView,
     RegisterView,
@@ -24,6 +25,7 @@ urlpatterns = [
 
     path('logout/', LogoutView.as_view(), name='logout'),
     path('me/', UserProfileView.as_view(), name='profile'),
+    path('me/dashboard/', MyDashboardView.as_view(), name='my_dashboard'),
     path('me/update/', UpdateUserProfileView.as_view(), name='update_profile'),
     path('me/delete/', DeleteAccountView.as_view(), name='delete_profile'),
     path('verify-email/', VerifyEmailView.as_view(), name='verify_email'),

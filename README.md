@@ -70,6 +70,7 @@ All endpoints are under `/api/`. Authenticated endpoints expect `Authorization: 
 | Prefix | Purpose |
 |---|---|
 | `/api/accounts/` | Register, verify email (OTP), log in, refresh tokens, password reset, own profile (`me/`) |
+| `/api/accounts/me/dashboard/` | Signed-in user's own dashboard: profile checklist, applications by status, jobs they posted with applicant counts, and open jobs on the platform |
 | `/api/v1/auth/` | dj-rest-auth endpoints and Google OAuth login/callback |
 | `/api/jobs/` | Jobs: create, list, search, update, delete |
 | `/api/applications/` | Apply to jobs, review applications |
