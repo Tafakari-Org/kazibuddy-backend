@@ -541,6 +541,9 @@ class UpdateJobStatusView(views.APIView):
     def post(self, request, job_id):
         try:
             job = Job.objects.get(pk=job_id)
+            # Only the poster or an admin may change a job's status.
+            if job.employer_id != request.user.id and not request.user.is_staff:
+                return Response({"error": "You do not own this job"}, status=403)
             status_val = request.data.get('status')
             if status_val not in [choice[0] for choice in Job.Status.choices]:
                 return Response({"error": "Invalid status"}, status=400)
@@ -1146,6 +1149,7 @@ class ListJobsWithApplicationsView(views.APIView):
                     'urgency_level', 'budget_min', 'budget_max', 'payment_type',
                     'status', 'admin_approved', 'views_count', 'applications_count',
                     'created_at', 'expires_at',
+                    'rejected_at', 'rejection_reasons', 'rejection_note',
                     'employer__id', 'employer__full_name',
                     'category__id', 'category__name',
                 )
@@ -1195,6 +1199,7 @@ class ListDraftJobsView(views.APIView):
                     'urgency_level', 'budget_min', 'budget_max', 'payment_type',
                     'status', 'admin_approved', 'views_count', 'applications_count',
                     'created_at', 'expires_at',
+                    'rejected_at', 'rejection_reasons', 'rejection_note',
                     'employer__id', 'employer__full_name',
                     'category__id', 'category__name',
                 )
@@ -1244,6 +1249,7 @@ class ListActiveJobsView(views.APIView):
                     'urgency_level', 'budget_min', 'budget_max', 'payment_type',
                     'status', 'admin_approved', 'views_count', 'applications_count',
                     'created_at', 'expires_at',
+                    'rejected_at', 'rejection_reasons', 'rejection_note',
                     'employer__id', 'employer__full_name',
                     'category__id', 'category__name',
                 )
@@ -1333,6 +1339,7 @@ class CancelledUnapprovedJobsView(views.APIView):
                     'urgency_level', 'budget_min', 'budget_max', 'payment_type',
                     'status', 'admin_approved', 'views_count', 'applications_count',
                     'created_at', 'expires_at',
+                    'rejected_at', 'rejection_reasons', 'rejection_note',
                     'employer__id', 'employer__full_name',
                     'category__id', 'category__name',
                 )

@@ -438,6 +438,39 @@ def send_job_approved_email(job):
         logger.error(f"send_job_approved_email error: {str(e)}")
 
 
+def build_job_rejected_email(job, reasons, fixes, note=""):
+    """Return (subject, html) for the 'your job wasn't approved' email to the poster."""
+    base = _frontend_base()
+    poster = job.employer
+    context = {
+        'full_name': getattr(poster, 'full_name', '') or poster.email,
+        'job': _job_summary(job),
+        'reasons': reasons,
+        'fixes': fixes,
+        'note': (note or '').strip(),
+        'reviewed_on': timezone.localtime().strftime('%d %B %Y'),
+        'post_job_url': f"{base}/dashboard?tab=post-job",
+        'my_jobs_url': f"{base}/dashboard?tab=my-jobs",
+        'support_email': SUPPORT_EMAIL,
+    }
+    html = render_to_string('email_templates/job_rejected_email.html', context)
+    return f"Your job “{job.title}” needs a few changes", html
+
+
+def send_job_rejected_email(job, reasons, fixes, note=""):
+    """Tell the poster their job wasn't approved, why, and how to fix it. Never raises."""
+    try:
+        poster = job.employer
+        if not poster or not poster.email:
+            logger.error(f"Job {job.id} has no poster email — cannot send rejection email")
+            return
+        subject, html_message = build_job_rejected_email(job, reasons, fixes, note)
+        send_email_async(subject, html_message, [poster.email])
+        logger.info(f"Job rejection email queued for {poster.email} (job {job.id})")
+    except Exception as e:
+        logger.error(f"send_job_rejected_email error: {str(e)}")
+
+
 def send_admin_invite_email(user, invite_link: str, invited_by=None):
     """
     Send an invite email to a newly created (dormant) admin account.

@@ -83,6 +83,11 @@ class Job(models.Model):
     expires_at = models.DateTimeField(null=True, blank=True)
     filled_at = models.DateTimeField(null=True, blank=True)
 
+    # Set when an admin declines the job; shown to the poster and in their rejection email.
+    rejected_at = models.DateTimeField(null=True, blank=True)
+    rejection_reasons = models.JSONField(default=list, blank=True)
+    rejection_note = models.TextField(blank=True, default='')
+
     # Pre-computed search vector — updated via post_save signal below
     # Eliminates the need to compute SearchVector on every query
     search_vector = SearchVectorField(null=True, blank=True)

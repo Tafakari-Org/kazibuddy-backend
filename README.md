@@ -82,7 +82,8 @@ All endpoints are under `/api/`. Authenticated endpoints expect `Authorization: 
 | `/api/adminpanel/` | Admin-only user and job moderation |
 | `/api/adminpanel/dashboard/stats/` | Admin-only: dashboard totals (users, jobs, applications, assignments), items awaiting review, 14-day trends, top categories, recent sign-ups and recent admin activity in one call |
 | `/api/adminpanel/users/<id>/reject/` | Admin-only: `POST {"reasons": [...], "note": "..."}` declines a registration and emails the user the reasons and how to fix them. `GET /api/adminpanel/users/pending/?status=rejected` lists rejected users; `/api/adminpanel/users/rejection-reasons/` lists the reason options |
-| Emails | Approving a user sends a welcome email; rejecting sends the reasons and how to fix them; approving a job tells the poster it is live (templates in `tafakari/templates/email_templates/`) |
+| `/api/adminpanel/jobs/<id>/reject/` | Admin-only: `POST {"reasons": [...], "note": "..."}` rejects a job listing and emails the poster why and how to fix it; `/api/adminpanel/jobs/rejection-reasons/` lists the options |
+| Emails | Approving a user sends a welcome email; rejecting sends the reasons and how to fix them; approving a job tells the poster it is live; rejecting a job sends the poster the reasons (templates in `tafakari/templates/email_templates/`) |
 | `/api/accounts/me/request-review/` | A rejected user puts their account back in the approval queue after fixing things |
 | `/api/adminpanel/users/bulk-approve/` | Admin-only: `POST {"user_ids": [...]}` (max 100) approves eligible users and reports skipped ones with a reason |
 | `/api/adminpanel/audit-logs/` | Admin-only audit trail: paginated, searchable, filterable (`search`, `action`, `target_type`, `actor`, `date_from`, `date_to`, `ordering`); `filters/` returns the dropdown options |

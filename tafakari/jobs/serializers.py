@@ -126,6 +126,12 @@ class JobListSerializer(serializers.ModelSerializer):
     images = JobImageSerializer(many=True, read_only=True)
     attachments = JobAttachmentSerializer(many=True, read_only=True)
 
+    rejection_reasons = serializers.SerializerMethodField()
+
+    def get_rejection_reasons(self, obj):
+        from .rejection import job_reason_labels
+        return job_reason_labels(getattr(obj, 'rejection_reasons', None) or [])
+
     class Meta:
         model = Job
         fields = [
@@ -135,6 +141,7 @@ class JobListSerializer(serializers.ModelSerializer):
             'status', 'admin_approved', 'is_assigned', 'is_featured', 'views_count', 'applications_count',
             'skills_count', 'created_at', 'expires_at',
             'images', 'attachments',
+            'rejected_at', 'rejection_reasons', 'rejection_note',
         ]
 
 

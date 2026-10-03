@@ -24,6 +24,7 @@ class AuditLog(models.Model):
         # Jobs
         JOB_APPROVED = 'job.approved', 'Approved job'
         JOB_UNAPPROVED = 'job.unapproved', 'Unapproved job'
+        JOB_REJECTED = 'job.rejected', 'Rejected job'
         JOB_CREATED = 'job.created', 'Created job'
         JOB_UPDATED = 'job.updated', 'Edited job'
         JOB_DELETED = 'job.deleted', 'Deleted job'

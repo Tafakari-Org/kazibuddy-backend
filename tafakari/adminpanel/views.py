@@ -28,9 +28,10 @@ from applications.serializers import JobApplicationSerializer, JobApplicationLis
 from rest_framework.permissions import IsAdminUser
 from utils.views import (
     send_otp_to_email, send_admin_invite_email, send_account_rejected_email, send_account_approved_email,
-    send_job_approved_email,
+    send_job_approved_email, send_job_rejected_email,
 )
 from accounts.rejection import REJECTION_REASONS, reason_labels, reason_fixes
+from jobs.rejection import JOB_REJECTION_REASONS, job_reason_labels, job_reason_fixes
 from utils.custom_error import error_response
 from utils.custom_pagination import CustomPagination
 import logging
@@ -157,6 +158,61 @@ class BulkApproveUsersView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class RejectJobView(APIView):
+    """
+    POST /api/adminpanel/jobs/<id>/reject/
+    Body: {"reasons": ["missing_details", ...], "note": "optional message to the poster"}
+
+    Declines a job listing (status → cancelled) and emails the poster why and how to fix it.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, job_id):
+        job = get_object_or_404(Job.objects.select_related('employer', 'category'), id=job_id)
+        if job.admin_approved:
+            return Response({"error": "This job is already approved. Unapprove it instead."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        reasons = request.data.get("reasons") or []
+        note = (request.data.get("note") or "").strip()
+        if not isinstance(reasons, list) or not reasons:
+            return Response({"error": "Choose at least one reason."}, status=status.HTTP_400_BAD_REQUEST)
+        unknown = [r for r in reasons if r not in JOB_REJECTION_REASONS]
+        if unknown:
+            return Response({"error": f"Unknown reason(s): {', '.join(map(str, unknown))}"}, status=status.HTTP_400_BAD_REQUEST)
+        if "other" in reasons and not note:
+            return Response({"error": "Add a note explaining the 'Other' reason."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(note) > 1000:
+            return Response({"error": "Keep the note under 1000 characters."}, status=status.HTTP_400_BAD_REQUEST)
+
+        reasons = list(dict.fromkeys(reasons))
+        previous_status = job.status
+        job.status = Job.Status.CANCELLED
+        job.admin_approved = False
+        job.rejected_at = timezone.now()
+        job.rejection_reasons = reasons
+        job.rejection_note = note
+        job.save(update_fields=['status', 'admin_approved', 'rejected_at', 'rejection_reasons', 'rejection_note', 'updated_at'])
+
+        send_job_rejected_email(job, job_reason_labels(reasons), job_reason_fixes(reasons), note)
+        log_action(request, AuditLog.Action.JOB_REJECTED, AuditLog.TargetType.JOB, job.id, job.title,
+                   {"employer": getattr(job.employer, "email", None), "from": previous_status,
+                    "reasons": job_reason_labels(reasons), "note": note})
+
+        return Response({
+            "message": f"“{job.title}” was rejected and the poster has been emailed the reasons.",
+            "job": {"id": str(job.id), "status": job.status, "rejected_at": job.rejected_at},
+        }, status=status.HTTP_200_OK)
+
+
+class JobRejectionReasonsView(APIView):
+    """GET /api/adminpanel/jobs/rejection-reasons/ — options for the reject-job dialog."""
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        return Response({"reasons": [{"value": k, "label": v} for k, v in JOB_REJECTION_REASONS.items()]})
 
 
 class RejectUserView(APIView):
@@ -305,6 +361,9 @@ class ApproveJobView(APIView):
         # Approve the job
         job.admin_approved = True
         job.status = Job.Status.ACTIVE
+        job.rejected_at = None
+        job.rejection_reasons = []
+        job.rejection_note = ''
         job.save()
         log_action(request, AuditLog.Action.JOB_APPROVED, AuditLog.TargetType.JOB, job.id, job.title,
                    {"employer": getattr(job.employer, "email", None)})
