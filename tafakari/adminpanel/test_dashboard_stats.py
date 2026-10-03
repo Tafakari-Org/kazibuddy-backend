@@ -50,6 +50,8 @@ class DashboardStatsTests(TestCase):
 
         self.assertEqual(len(d['recent_signups']), 4)
         self.assertEqual(d['recent_activity'][0]['action'], 'user.approved')
+        self.assertEqual(d['totals']['audit_logs'], 1)
+        self.assertEqual(d['totals']['categories'], 0)
 
     def test_non_admin_forbidden(self):
         member = CustomUser.objects.get(email='pending@t.io')

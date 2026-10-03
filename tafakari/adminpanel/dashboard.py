@@ -15,6 +15,8 @@ from auditlogs.serializers import AuditLogSerializer
 from jobs.models import Job, JobCategory
 
 TREND_DAYS = 14
+# Dashboard cards are previews; full lists live on their own pages.
+PREVIEW_LIMIT = 10
 ADMIN_TYPES = ('admin', 'super_admin')
 
 
@@ -83,15 +85,15 @@ class AdminDashboardStatsView(APIView):
         categories = list(
             JobCategory.objects.annotate(jobs_count=Count('jobs'))
             .order_by('-jobs_count', 'name')
-            .values('id', 'name', 'jobs_count')[:8]
+            .values('id', 'name', 'jobs_count')[:PREVIEW_LIMIT]
         )
 
         recent_signups = list(
             CustomUser.objects.order_by('-created_at')
-            .values('id', 'full_name', 'email', 'user_type', 'is_verified', 'email_verified', 'created_at')[:6]
+            .values('id', 'full_name', 'email', 'user_type', 'is_verified', 'email_verified', 'created_at')[:PREVIEW_LIMIT]
         )
 
-        recent_activity = AuditLogSerializer(AuditLog.objects.order_by('-created_at')[:8], many=True).data
+        recent_activity = AuditLogSerializer(AuditLog.objects.order_by('-created_at')[:PREVIEW_LIMIT], many=True).data
 
         return Response({
             "generated_at": now,
@@ -107,4 +109,8 @@ class AdminDashboardStatsView(APIView):
             },
             "recent_signups": [{**u, "id": str(u['id'])} for u in recent_signups],
             "recent_activity": recent_activity,
+            "totals": {
+                "categories": JobCategory.objects.count(),
+                "audit_logs": AuditLog.objects.count(),
+            },
         }, status=status.HTTP_200_OK)
