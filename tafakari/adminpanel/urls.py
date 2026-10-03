@@ -1,4 +1,5 @@
 from django.urls import path
+from .dashboard import AdminDashboardStatsView
 from .views import (
     ApproveUserView,
     BulkApproveUsersView,
@@ -27,6 +28,7 @@ from .views import (
 
 urlpatterns = [
     # existing routes
+    path('dashboard/stats/', AdminDashboardStatsView.as_view(), name='admin-dashboard-stats'),
     path('users/bulk-approve/', BulkApproveUsersView.as_view(), name='bulk_approve_users'),
     path('users/<uuid:user_id>/approve/', ApproveUserView.as_view(), name='approve_user'),
     path('users/<uuid:user_id>/deactivate/', DeactivateUserView.as_view(), name='deactivate_user'),
