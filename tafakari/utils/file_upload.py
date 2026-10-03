@@ -76,6 +76,24 @@ class FileUploadService(FileUploadManagerService):
             logger.error(f"Failed to save file {uploaded_file.name}: {str(e)}")
             raise Exception(f"Failed to upload file: {str(e)}")
 
+    def path_for(self, file_url):
+        """
+        Resolve a stored media URL to its absolute path on disk.
+
+        Returns None if the URL points outside MEDIA_ROOT.
+        """
+        # Strip MEDIA_URL prefix to get the path relative to MEDIA_ROOT
+        relative_path = file_url.lstrip('/')
+        clean_prefix = settings.MEDIA_URL.strip('/')
+        if relative_path.startswith(clean_prefix):
+            relative_path = relative_path[len(clean_prefix):].lstrip('/')
+
+        media_root = os.path.abspath(settings.MEDIA_ROOT)
+        abs_path = os.path.abspath(os.path.join(media_root, relative_path))
+        if not abs_path.startswith(media_root + os.sep):
+            return None
+        return abs_path
+
     def remove(self, file_url):
         """
         Delete a previously uploaded file from disk given its media URL.
@@ -89,18 +107,9 @@ class FileUploadService(FileUploadManagerService):
         if not file_url:
             return False
 
-        # Strip MEDIA_URL prefix to get the path relative to MEDIA_ROOT
-        media_url_prefix = settings.MEDIA_URL.rstrip('/')
-        relative_path = file_url.lstrip('/')
-        
-        # Check if it's a media URL
-        clean_prefix = media_url_prefix.lstrip('/')
-        if relative_path.startswith(clean_prefix):
-            relative_path = relative_path[len(clean_prefix):].lstrip('/')
+        abs_path = self.path_for(file_url)
 
-        abs_path = os.path.join(settings.MEDIA_ROOT, relative_path)
-
-        if os.path.exists(abs_path):
+        if abs_path and os.path.exists(abs_path):
             try:
                 os.remove(abs_path)
                 logger.info(f"File deleted: {abs_path}")

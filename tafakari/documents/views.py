@@ -1,7 +1,9 @@
 import mimetypes
 import logging
+import os
 
 from django.db.models import Sum
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
 from rest_framework.response import Response
@@ -13,9 +15,11 @@ from .serializers import UserDocumentSerializer
 
 logger = logging.getLogger(__name__)
 
-# Total storage cap per user across all their profile attachments. Separate
-# from FileUploadService's own 10MB-per-file cap.
-MAX_PROFILE_STORAGE_BYTES = 20 * 1024 * 1024  # 20 MB
+# Total storage cap per user across all their documents (signup + profile).
+# Sized to fit the 10 x 5MB allowed at registration.
+MAX_PROFILE_STORAGE_BYTES = 50 * 1024 * 1024  # 50 MB
+# Per-file cap, matching registration (stricter than FileUploadService's 10MB).
+MAX_PROFILE_DOCUMENT_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
 def _storage_used(user):
@@ -43,6 +47,12 @@ class MyDocumentsView(APIView):
         uploaded_file = request.FILES.get('file')
         if not uploaded_file:
             return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if uploaded_file.size > MAX_PROFILE_DOCUMENT_SIZE:
+            return Response(
+                {"error": f'"{uploaded_file.name}" exceeds the 5 MB limit.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         used = _storage_used(request.user)
         if used + uploaded_file.size > MAX_PROFILE_STORAGE_BYTES:
@@ -98,3 +108,22 @@ class MyDocumentDetailView(APIView):
 
         document.delete()
         return Response({"message": "Document deleted successfully"}, status=status.HTTP_200_OK)
+
+
+class MyDocumentDownloadView(APIView):
+    """Stream one of the requesting user's own attachments as a download."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, document_id):
+        document = get_object_or_404(UserDocument, pk=document_id, user_id=request.user)
+
+        file_path = FileUploadService().path_for(document.file_url)
+        if not file_path or not os.path.isfile(file_path):
+            raise Http404("File not found")
+
+        return FileResponse(
+            open(file_path, 'rb'),
+            as_attachment=True,
+            filename=document.file_name,
+            content_type=document.file_type or 'application/octet-stream',
+        )
