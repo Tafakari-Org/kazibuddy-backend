@@ -9,6 +9,8 @@ from django.conf import settings
 from accounts.models import CustomUser
 from documents.models import UserDocument
 from documents.views import document_file_response
+from auditlogs.models import AuditLog
+from auditlogs.service import log_action
 from jobs.models import Job
 from jobs.serializers import JobSerializer, JobListSerializer
 from .models import AdminInvite
@@ -63,6 +65,9 @@ class ApproveUserView(APIView):
                 action_type='approved'
             )
 
+        log_action(request, AuditLog.Action.USER_APPROVED, AuditLog.TargetType.USER, user.id, user.email,
+                   {"full_name": user.full_name})
+
         serializer = ApproveUserSerializer(user)
         return Response(
             {"message": "User approved successfully", "user": serializer.data},
@@ -93,6 +98,9 @@ class DeactivateUserView(APIView):
                 otp_type='admin_notification', 
                 action_type='deactivated'
             )
+
+        log_action(request, AuditLog.Action.USER_DEACTIVATED, AuditLog.TargetType.USER, user.id, user.email,
+                   {"full_name": user.full_name})
 
         serializer = UserStatusSerializer(user)
         return Response(
@@ -153,6 +161,8 @@ class ApproveJobView(APIView):
         job.admin_approved = True
         job.status = Job.Status.ACTIVE
         job.save()
+        log_action(request, AuditLog.Action.JOB_APPROVED, AuditLog.TargetType.JOB, job.id, job.title,
+                   {"employer": getattr(job.employer, "email", None)})
         
         # Notify employer of job approval
         if job.employer:
@@ -188,6 +198,8 @@ class ApproveJobView(APIView):
         
         job.admin_approved = False
         job.save()
+        log_action(request, AuditLog.Action.JOB_UNAPPROVED, AuditLog.TargetType.JOB, job.id, job.title,
+                   {"employer": getattr(job.employer, "email", None)})
 
         # Notify employer of job unapproval
         if job.employer:
@@ -326,6 +338,7 @@ class UpdateJobApplicationStatusView(APIView):
         # select_for_update prevents concurrent admin status changes
         with transaction.atomic():
             application = JobApplication.objects.select_for_update().get(id=application_id)
+            previous_status = application.status
             application.status = new_status
 
             # Set timestamps based on transition
@@ -344,6 +357,13 @@ class UpdateJobApplicationStatusView(APIView):
                 application.worker_notes = worker_notes
 
             application.save()
+
+            log_action(
+                request, AuditLog.Action.APPLICATION_STATUS_CHANGED, AuditLog.TargetType.APPLICATION, application.id,
+                f"{application.worker.full_name} → {application.job.title}",
+                {"from": previous_status, "to": new_status, "worker": application.worker.email,
+                 "job": application.job.title, "notes": employer_notes},
+            )
 
             # Notify worker of application status update
             send_otp_to_email(
@@ -367,7 +387,10 @@ class DeleteAllUsersView(APIView):
     permission_classes = [permissions.IsAdminUser]
     def delete(self, request):
         try:
+            deleted_count = CustomUser.objects.count()
             CustomUser.objects.all().delete()
+            log_action(request, AuditLog.Action.USERS_DELETED_ALL, AuditLog.TargetType.USER, '', 'All users',
+                       {"count": deleted_count})
             return Response({"message": "All users deleted successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             return error_response(
@@ -426,7 +449,9 @@ class DeleteUserByEmailView(APIView):
                 action_type='deleted'
             )
             
+            deleted = {"id": str(user.id), "full_name": user.full_name, "user_type": user.user_type}
             user.delete()
+            log_action(request, AuditLog.Action.USER_DELETED, AuditLog.TargetType.USER, deleted["id"], email, deleted)
             return Response({"message": f"User with email {email} deleted successfully"}, status=status.HTTP_200_OK)
         except CustomUser.DoesNotExist:
             return error_response(
@@ -533,6 +558,9 @@ class CreateAdminView(APIView):
             invited_by=request.user,
         )
 
+        log_action(request, AuditLog.Action.ADMIN_INVITED, AuditLog.TargetType.ADMIN, user.id, user.email,
+                   {"full_name": user.full_name})
+
         return Response(
             {
                 "message": "Admin invite sent successfully. The admin will receive an email to set up their account.",
@@ -588,6 +616,9 @@ class CreateSuperAdminView(APIView):
             invite_link=invite_link,
             invited_by=request.user,
         )
+
+        log_action(request, AuditLog.Action.SUPERADMIN_CREATED, AuditLog.TargetType.ADMIN, user.id, user.email,
+                   {"full_name": user.full_name})
 
         return Response(
             {
@@ -735,6 +766,8 @@ class ResendAdminInviteView(APIView):
             invited_by=request.user,
         )
 
+        log_action(request, AuditLog.Action.ADMIN_INVITE_RESENT, AuditLog.TargetType.ADMIN, user.id, user.email)
+
         return Response(
             {"message": f"Invite resent to {user.email}."},
             status=status.HTTP_200_OK,
@@ -827,8 +860,11 @@ class AdminDetailView(APIView):
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
+        changed = {k: v for k, v in request.data.items() if k not in ("password", "confirm_password")}
         with transaction.atomic():
             serializer.save(updated_at=timezone.now())
+        log_action(request, AuditLog.Action.ADMIN_UPDATED, AuditLog.TargetType.ADMIN, user.id, user.email,
+                   {"changes": changed})
 
         return Response(
             {"message": "Admin updated successfully", "data": serializer.data},
@@ -858,7 +894,10 @@ class AdminDetailView(APIView):
             )
 
         deleted_email = user.email
+        deleted_id = str(user.id)
+        deleted_info = {"full_name": user.full_name, "user_type": user.user_type}
         user.delete()
+        log_action(request, AuditLog.Action.ADMIN_DELETED, AuditLog.TargetType.ADMIN, deleted_id, deleted_email, deleted_info)
         return Response(
             {"message": f"Admin '{deleted_email}' deleted successfully."},
             status=status.HTTP_200_OK,
@@ -937,6 +976,7 @@ class ChangeUserRoleView(APIView):
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
+        previous_role = user.user_type
         user.user_type = new_role
         if new_role == "super_admin":
             user.is_staff = True
@@ -956,6 +996,9 @@ class ChangeUserRoleView(APIView):
             action_type='role_changed',
             new_role=new_role
         )
+
+        log_action(request, AuditLog.Action.USER_ROLE_CHANGED, AuditLog.TargetType.USER, user.id, user.email,
+                   {"from": previous_role, "to": new_role, "full_name": user.full_name})
 
         return Response(
             {

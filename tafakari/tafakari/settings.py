@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'utils',
     'skills',
     'documents',
+    'auditlogs',
     'messaging',
     'corsheaders',
     'channels',

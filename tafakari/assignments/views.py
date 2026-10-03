@@ -19,6 +19,8 @@ from jobs.models import Job
 from utils.custom_pagination import CustomPagination
 from utils.views import send_otp_to_email
 from .tasks import notify_rejected_applicants
+from auditlogs.models import AuditLog
+from auditlogs.service import log_action
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +104,13 @@ class ListCreateAssignmentView(APIView):
                     status='rejected',
                     responded_at=timezone.now(),
                 )
+
+            log_action(
+                request, AuditLog.Action.ASSIGNMENT_CREATED, AuditLog.TargetType.ASSIGNMENT, assignment.id,
+                f"{assignment.job.title} → {assignment.worker.full_name}",
+                {"job": assignment.job.title, "job_id": str(assignment.job.id),
+                 "worker": assignment.worker.email, "employer": assignment.employer.email},
+            )
 
             # Notify worker
             send_otp_to_email(
@@ -210,6 +219,11 @@ class AssignmentDetailView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             serializer.save()
+            log_action(
+                request, AuditLog.Action.ASSIGNMENT_UPDATED, AuditLog.TargetType.ASSIGNMENT, assignment.id,
+                f"{assignment.job.title} → {assignment.worker.full_name}",
+                {"changes": dict(request.data)},
+            )
 
             return Response({
                 'status': 'success',
@@ -233,11 +247,14 @@ class AssignmentDetailView(APIView):
                     'message': 'Assignment not found.',
                 }, status=status.HTTP_404_NOT_FOUND)
 
+            label = f"{assignment.job.title} → {assignment.worker.full_name}"
+            assignment_pk = assignment.id
             with transaction.atomic():
                 assignment.job.is_assigned = False
                 assignment.job.status = Job.Status.ACTIVE
                 assignment.job.save(update_fields=['is_assigned', 'status'])
                 assignment.delete()
+            log_action(request, AuditLog.Action.ASSIGNMENT_DELETED, AuditLog.TargetType.ASSIGNMENT, assignment_pk, label)
 
             return Response({
                 'status': 'success',

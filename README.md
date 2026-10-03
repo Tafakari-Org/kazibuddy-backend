@@ -55,6 +55,7 @@ kazibuddy-backend/
     ├── messaging/            # real-time chat (Channels consumers)
     ├── ratings/              # reviews and ratings
     ├── adminpanel/           # admin approval of users and jobs
+    ├── auditlogs/            # audit trail of admin actions (who did what, when)
     ├── analytics/            # admin analytics
     ├── payments/             # payments (work in progress, not yet enabled)
     └── utils/                # shared helpers (file uploads, email, OTP)
@@ -78,6 +79,7 @@ All endpoints are under `/api/`. Authenticated endpoints expect `Authorization: 
 | `/api/messages/` | Conversations and messages |
 | `ws/thread/<thread_id>/` | WebSocket for live chat in a thread |
 | `/api/adminpanel/` | Admin-only user and job moderation |
+| `/api/adminpanel/audit-logs/` | Admin-only audit trail: paginated, searchable, filterable (`search`, `action`, `target_type`, `actor`, `date_from`, `date_to`, `ordering`); `filters/` returns the dropdown options |
 | `/media/<path>` | Uploaded files |
 | `/admin/` | Django admin |
 

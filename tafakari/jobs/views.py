@@ -17,6 +17,8 @@ from skills.models import Skill
 from utils.custom_pagination import CustomPagination
 from utils.views import send_otp_to_email
 from utils.file_upload import FileUploadService
+from auditlogs.models import AuditLog
+from auditlogs.service import log_action
 import mimetypes
 import logging
 
@@ -66,6 +68,7 @@ class CreateJobCategoryView(views.APIView):
         serializer = JobCategorySerializer(data=request.data)
         if serializer.is_valid():
             category = serializer.save()
+            log_action(request, AuditLog.Action.CATEGORY_CREATED, AuditLog.TargetType.CATEGORY, category.pk, category.name)
             return Response(
                 {
                     "message": "Job category created successfully",
@@ -84,6 +87,8 @@ class UpdateJobCategoryView(views.APIView):
             serializer = JobCategorySerializer(category, data=request.data)
             if serializer.is_valid():
                 updated_category = serializer.save()
+                log_action(request, AuditLog.Action.CATEGORY_UPDATED, AuditLog.TargetType.CATEGORY, updated_category.pk,
+                           updated_category.name, {"changes": dict(request.data)})
                 return Response(
                     {
                         "message": "Job category updated successfully",
@@ -101,7 +106,9 @@ class DeleteJobCategoryView(views.APIView):
     def delete(self, request, category_id):
         try:
             category = JobCategory.objects.get(pk=category_id)
+            category_name = category.name
             category.delete()
+            log_action(request, AuditLog.Action.CATEGORY_DELETED, AuditLog.TargetType.CATEGORY, category_id, category_name)
             return Response({"message": "Category deleted successfully"}, status=204)
         except JobCategory.DoesNotExist:
             return Response({"error": "Category not found"}, status=404)
@@ -291,6 +298,8 @@ class CreateJobView(views.APIView):
             job_status=job.get_status_display(),
         )
  
+        log_action(request, AuditLog.Action.JOB_CREATED, AuditLog.TargetType.JOB, job.id, job.title, staff_only=True)
+
         return Response(
             {"message": "Job created successfully",
              "data": JobSerializer(job, context={'request': request}).data},
@@ -419,6 +428,12 @@ class UpdateJobView(views.APIView):
             except Exception as e:
                 logger.warning(f"Old cover not removed from storage ({replaced_cover_url}): {e}")
  
+        log_action(
+            request, AuditLog.Action.JOB_UPDATED, AuditLog.TargetType.JOB, job.id, job.title,
+            {"fields": sorted(k for k in request.data.keys() if not k.startswith(("images", "attachments", "cover")))},
+            staff_only=True,
+        )
+
         return Response(
             {"message": "Job updated successfully", "data": serializer.data},
             status=status.HTTP_200_OK,
@@ -497,6 +512,9 @@ class DeleteJobView(views.APIView):
                 job_title=job_title,
             )
 
+        log_action(request, AuditLog.Action.JOB_DELETED, AuditLog.TargetType.JOB, job_id, job_title,
+                   {"employer": getattr(job_employer, "email", None)}, staff_only=True)
+
         return Response({"message": "Job deleted successfully"}, status=status.HTTP_200_OK)
 
 class JobSkillsView(views.APIView):
@@ -526,8 +544,11 @@ class UpdateJobStatusView(views.APIView):
             status_val = request.data.get('status')
             if status_val not in [choice[0] for choice in Job.Status.choices]:
                 return Response({"error": "Invalid status"}, status=400)
+            previous_status = job.status
             job.status = status_val
             job.save()
+            log_action(request, AuditLog.Action.JOB_STATUS_CHANGED, AuditLog.TargetType.JOB, job.id, job.title,
+                       {"from": previous_status, "to": status_val}, staff_only=True)
             # Send notification for status update
             send_otp_to_email(
                 user=request.user, 
@@ -571,6 +592,8 @@ class ToggleFeaturedJobView(views.APIView):
             
             job.is_featured = is_featured
             job.save()
+            log_action(request, AuditLog.Action.JOB_FEATURED_TOGGLED, AuditLog.TargetType.JOB, job.id, job.title,
+                       {"is_featured": is_featured})
             
             return Response({
                 "message": f"Job {'marked as featured' if is_featured else 'removed from featured'} successfully",
