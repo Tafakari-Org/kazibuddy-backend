@@ -81,6 +81,8 @@ All endpoints are under `/api/`. Authenticated endpoints expect `Authorization: 
 | `ws/thread/<thread_id>/` | WebSocket for live chat in a thread |
 | `/api/adminpanel/` | Admin-only user and job moderation |
 | `/api/adminpanel/dashboard/stats/` | Admin-only: dashboard totals (users, jobs, applications, assignments), items awaiting review, 14-day trends, top categories, recent sign-ups and recent admin activity in one call |
+| `/api/adminpanel/users/<id>/reject/` | Admin-only: `POST {"reasons": [...], "note": "..."}` declines a registration and emails the user the reasons and how to fix them. `GET /api/adminpanel/users/pending/?status=rejected` lists rejected users; `/api/adminpanel/users/rejection-reasons/` lists the reason options |
+| `/api/accounts/me/request-review/` | A rejected user puts their account back in the approval queue after fixing things |
 | `/api/adminpanel/users/bulk-approve/` | Admin-only: `POST {"user_ids": [...]}` (max 100) approves eligible users and reports skipped ones with a reason |
 | `/api/adminpanel/audit-logs/` | Admin-only audit trail: paginated, searchable, filterable (`search`, `action`, `target_type`, `actor`, `date_from`, `date_to`, `ordering`); `filters/` returns the dropdown options |
 | `/media/<path>` | Uploaded files |

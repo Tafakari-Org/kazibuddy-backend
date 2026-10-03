@@ -10,6 +10,7 @@ class AuditLog(models.Model):
     class Action(models.TextChoices):
         # Users
         USER_APPROVED = 'user.approved', 'Approved user'
+        USER_REJECTED = 'user.rejected', 'Rejected user'
         USER_DEACTIVATED = 'user.deactivated', 'Deactivated user'
         USER_DELETED = 'user.deleted', 'Deleted user'
         USERS_DELETED_ALL = 'user.deleted_all', 'Deleted all users'

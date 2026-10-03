@@ -3,6 +3,8 @@ from .dashboard import AdminDashboardStatsView
 from .views import (
     ApproveUserView,
     BulkApproveUsersView,
+    RejectUserView,
+    RejectionReasonsView,
     DeactivateUserView,
     AllJobsListView,
     ApproveJobView,
@@ -29,6 +31,8 @@ from .views import (
 urlpatterns = [
     # existing routes
     path('dashboard/stats/', AdminDashboardStatsView.as_view(), name='admin-dashboard-stats'),
+    path('users/rejection-reasons/', RejectionReasonsView.as_view(), name='rejection_reasons'),
+    path('users/<uuid:user_id>/reject/', RejectUserView.as_view(), name='reject_user'),
     path('users/bulk-approve/', BulkApproveUsersView.as_view(), name='bulk_approve_users'),
     path('users/<uuid:user_id>/approve/', ApproveUserView.as_view(), name='approve_user'),
     path('users/<uuid:user_id>/deactivate/', DeactivateUserView.as_view(), name='deactivate_user'),

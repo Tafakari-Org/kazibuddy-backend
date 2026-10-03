@@ -293,6 +293,42 @@ def send_password_reset_email(user, reset_link):
         # Don't raise — a failed email must not block the request response
 
 
+SUPPORT_EMAIL = "support@kazibuddy.co.ke"
+
+
+def build_account_rejected_email(user, reasons, fixes, note=""):
+    """Return (subject, html) for the 'account not approved' email."""
+    base = str(getattr(settings, 'FRONTEND_URL', '') or 'https://kazibuddy.tech').rstrip('/')
+    context = {
+        'full_name': getattr(user, 'full_name', '') or user.email,
+        'email': user.email,
+        'reasons': reasons,
+        'fixes': fixes,
+        'note': (note or '').strip(),
+        'reviewed_on': timezone.localtime().strftime('%d %B %Y'),
+        'profile_url': f"{base}/profile",
+        'support_email': SUPPORT_EMAIL,
+    }
+    html = render_to_string('email_templates/account_rejected_email.html', context)
+    return "Update on your KaziBuddy account", html
+
+
+def send_account_rejected_email(user, reasons, fixes, note=""):
+    """
+    Tell a user their registration wasn't approved, why, and how to fix it.
+    Never raises: a failed email must not block the admin's action.
+    """
+    try:
+        if not user.email:
+            logger.error(f"User {user.id} has no email address — cannot send rejection email")
+            return
+        subject, html_message = build_account_rejected_email(user, reasons, fixes, note)
+        send_email_async(subject, html_message, [user.email])
+        logger.info(f"Account rejection email queued for {user.email}")
+    except Exception as e:
+        logger.error(f"send_account_rejected_email error: {str(e)}")
+
+
 def send_admin_invite_email(user, invite_link: str, invited_by=None):
     """
     Send an invite email to a newly created (dormant) admin account.

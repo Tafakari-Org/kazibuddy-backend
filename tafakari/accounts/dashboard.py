@@ -12,6 +12,7 @@ from assignments.models import Assignment
 from documents.models import UserDocument
 from documents.views import MAX_DOCUMENTS_PER_USER
 from jobs.models import Job
+from .rejection import reason_fixes, reason_labels
 
 
 class MyDashboardView(APIView):
@@ -93,6 +94,12 @@ class MyDashboardView(APIView):
             "account": {
                 "full_name": user.full_name,
                 "is_approved": bool(user.is_verified),
+                "rejection": {
+                    "rejected_at": user.rejected_at,
+                    "reasons": reason_labels(user.rejection_reasons or []),
+                    "fixes": reason_fixes(user.rejection_reasons or []),
+                    "note": user.rejection_note,
+                } if user.rejected_at and not user.is_verified else None,
                 "email_verified": bool(user.email_verified),
                 "documents_count": documents_count,
                 "documents_max": MAX_DOCUMENTS_PER_USER,
@@ -110,3 +117,26 @@ class MyDashboardView(APIView):
                 "new_this_week": open_jobs.filter(created_at__gte=week_ago).count(),
             },
         }, status=status.HTTP_200_OK)
+
+
+class RequestReviewView(APIView):
+    """
+    POST /api/accounts/me/request-review/
+
+    After fixing what an admin flagged, a rejected user puts their account back
+    in the approval queue. The earlier reasons are cleared.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if user.is_verified:
+            return Response({"message": "Your account is already approved."}, status=status.HTTP_200_OK)
+        if not user.rejected_at:
+            return Response({"message": "Your account is already waiting for review."}, status=status.HTTP_200_OK)
+
+        user.rejected_at = None
+        user.rejection_reasons = []
+        user.rejection_note = ''
+        user.save(update_fields=['rejected_at', 'rejection_reasons', 'rejection_note', 'updated_at'])
+        return Response({"message": "Thanks! Your account is back in the review queue."}, status=status.HTTP_200_OK)

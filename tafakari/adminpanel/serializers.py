@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from accounts.models import CustomUser
 from documents.serializers import UserDocumentSerializer
+from accounts.rejection import reason_labels
 
 
 class ApproveUserSerializer(serializers.ModelSerializer):
@@ -19,6 +20,10 @@ class UserStatusSerializer(serializers.ModelSerializer):
 class UserDetailSerializer(serializers.ModelSerializer):
     """Full account detail + supporting documents, for the admin approve-users detail view."""
     documents = UserDocumentSerializer(many=True, read_only=True)
+    rejection_reasons = serializers.SerializerMethodField()
+
+    def get_rejection_reasons(self, obj):
+        return reason_labels(obj.rejection_reasons or [])
 
     class Meta:
         model = CustomUser
@@ -26,6 +31,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
             'id', 'full_name', 'username', 'email', 'phone_number', 'user_type',
             'profile_photo_url', 'is_active', 'is_verified', 'email_verified',
             'phone_verified', 'is_oauth_user', 'created_at', 'last_login',
+            'rejected_at', 'rejection_reasons', 'rejection_note',
             'documents',
         ]
         read_only_fields = fields

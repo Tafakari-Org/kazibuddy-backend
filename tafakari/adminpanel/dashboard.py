@@ -55,7 +55,8 @@ class AdminDashboardStatsView(APIView):
             total=Count('pk'),
             admins=Count('pk', filter=Q(user_type__in=ADMIN_TYPES)),
             approved=Count('pk', filter=Q(is_verified=True)),
-            pending_approval=Count('pk', filter=Q(is_verified=False, email_verified=True)),
+            pending_approval=Count('pk', filter=Q(is_verified=False, email_verified=True, rejected_at__isnull=True)),
+            rejected=Count('pk', filter=Q(is_verified=False, rejected_at__isnull=False)),
             unverified_email=Count('pk', filter=Q(is_verified=False, email_verified=False)),
             new_this_week=Count('pk', filter=Q(created_at__gte=week_ago)),
         )

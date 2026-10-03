@@ -80,6 +80,12 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
+    # Set when an admin declines the registration; cleared on approval or when the
+    # user asks for another review. Rejected users stay out of the pending queue.
+    rejected_at = models.DateTimeField(null=True, blank=True)
+    rejection_reasons = models.JSONField(default=list, blank=True)
+    rejection_note = models.TextField(blank=True, default='')
+
     is_staff = models.BooleanField(default=False)  # Required by Django admin
 
     USERNAME_FIELD = "email"

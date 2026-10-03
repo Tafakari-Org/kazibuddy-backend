@@ -26,7 +26,8 @@ from .serializers import (
 from applications.models import JobApplication
 from applications.serializers import JobApplicationSerializer, JobApplicationListSerializer
 from rest_framework.permissions import IsAdminUser
-from utils.views import send_otp_to_email, send_admin_invite_email
+from utils.views import send_otp_to_email, send_admin_invite_email, send_account_rejected_email
+from accounts.rejection import REJECTION_REASONS, reason_labels, reason_fixes
 from utils.custom_error import error_response
 from utils.custom_pagination import CustomPagination
 import logging
@@ -48,6 +49,9 @@ def _approve_user(request, user):
     # Atomic: is_verified + updated_at must update together
     with transaction.atomic():
         user.is_verified = True
+        user.rejected_at = None
+        user.rejection_reasons = []
+        user.rejection_note = ''
         user.updated_at = timezone.now()
         user.save()
 
@@ -138,6 +142,58 @@ class BulkApproveUsersView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class RejectUserView(APIView):
+    """
+    POST /api/adminpanel/users/<id>/reject/
+    Body: {"reasons": ["documents_unclear", ...], "note": "optional message to the user"}
+
+    Declines a registration: the account stays (so the user can fix things and ask
+    for another review) but leaves the pending queue, and the user gets an email
+    explaining why and what to do next.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, user_id):
+        user = get_object_or_404(CustomUser, id=user_id)
+        if user.is_verified:
+            return Response({"error": "This user is already approved."}, status=status.HTTP_400_BAD_REQUEST)
+
+        reasons = request.data.get("reasons") or []
+        note = (request.data.get("note") or "").strip()
+        if not isinstance(reasons, list) or not reasons:
+            return Response({"error": "Choose at least one reason."}, status=status.HTTP_400_BAD_REQUEST)
+        unknown = [r for r in reasons if r not in REJECTION_REASONS]
+        if unknown:
+            return Response({"error": f"Unknown reason(s): {', '.join(map(str, unknown))}"}, status=status.HTTP_400_BAD_REQUEST)
+        if "other" in reasons and not note:
+            return Response({"error": "Add a note explaining the 'Other' reason."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(note) > 1000:
+            return Response({"error": "Keep the note under 1000 characters."}, status=status.HTTP_400_BAD_REQUEST)
+
+        reasons = list(dict.fromkeys(reasons))
+        user.rejected_at = timezone.now()
+        user.rejection_reasons = reasons
+        user.rejection_note = note
+        user.save(update_fields=['rejected_at', 'rejection_reasons', 'rejection_note', 'updated_at'])
+
+        send_account_rejected_email(user, reason_labels(reasons), reason_fixes(reasons), note)
+        log_action(request, AuditLog.Action.USER_REJECTED, AuditLog.TargetType.USER, user.id, user.email,
+                   {"full_name": user.full_name, "reasons": reason_labels(reasons), "note": note})
+
+        return Response({
+            "message": f"{user.full_name or user.email} was not approved and has been emailed the reasons.",
+            "user": {"id": str(user.id), "email": user.email, "rejected_at": user.rejected_at},
+        }, status=status.HTTP_200_OK)
+
+
+class RejectionReasonsView(APIView):
+    """GET /api/adminpanel/users/rejection-reasons/ — options for the reject dialog."""
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        return Response({"reasons": [{"value": k, "label": v} for k, v in REJECTION_REASONS.items()]})
 
 
 def _is_uuid(value):
@@ -321,12 +377,14 @@ class ListPendingUsersView(APIView):
 
     def get(self, request):
         try:
+            # ?status=rejected lists declined registrations; default is the review queue.
+            rejected = request.query_params.get('status') == 'rejected'
             users = CustomUser.objects.filter(
-                is_verified=False
+                is_verified=False, rejected_at__isnull=not rejected,
             ).only(
-                'id', 'email', 'phone_number', 'user_type',
-                'full_name', 'profile_photo_url', 'email_verified', 'phone_verified'
-            ).order_by('-created_at')
+                'id', 'email', 'phone_number', 'user_type', 'full_name', 'profile_photo_url',
+                'email_verified', 'phone_verified', 'rejected_at', 'rejection_reasons', 'rejection_note',
+            ).order_by('-rejected_at' if rejected else '-created_at')
 
             paginator = self.pagination_class()
             paginated_users = paginator.paginate_queryset(users, request)
@@ -341,6 +399,9 @@ class ListPendingUsersView(APIView):
                     'profile_photo_url': user.profile_photo_url,
                     'email_verified': user.email_verified,
                     'phone_verified': user.phone_verified,
+                    'rejected_at': user.rejected_at,
+                    'rejection_reasons': reason_labels(user.rejection_reasons or []),
+                    'rejection_note': user.rejection_note,
                 }
                 for user in paginated_users
             ]
