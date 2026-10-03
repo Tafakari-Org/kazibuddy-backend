@@ -471,6 +471,48 @@ def send_job_rejected_email(job, reasons, fixes, note=""):
         logger.error(f"send_job_rejected_email error: {str(e)}")
 
 
+def build_application_accepted_email(worker, job, application=None):
+    """Return (subject, html) for the 'you got the job' email to a worker."""
+    base = _frontend_base()
+    full_name = getattr(worker, 'full_name', '') or worker.email
+
+    your_rate = ""
+    start = None
+    if application is not None:
+        if application.proposed_rate is not None:
+            your_rate = f"KES {application.proposed_rate:,.0f}"
+            if job.payment_type:
+                your_rate += f" · {job.get_payment_type_display()}"
+        start = application.availability_start
+    start = start or job.start_date
+
+    context = {
+        'full_name': full_name,
+        'first_name': full_name.split()[0] if full_name else 'there',
+        'job': _job_summary(job),
+        'poster_name': getattr(job.employer, 'full_name', '') if job.employer_id else '',
+        'your_rate': your_rate,
+        'start_date': start.strftime('%A, %d %B %Y') if start else '',
+        'dashboard_url': f"{base}/dashboard?tab=my-applications",
+        'support_email': SUPPORT_EMAIL,
+    }
+    html = render_to_string('email_templates/application_accepted_email.html', context)
+    return f"You got the job: {job.title} 🎉", html
+
+
+def send_application_accepted_email(worker, job, application=None):
+    """Congratulate a worker whose application was accepted. Never raises."""
+    try:
+        if not worker or not worker.email:
+            logger.error(f"Accepted worker for job {job.id} has no email — cannot send acceptance email")
+            return
+        subject, html_message = build_application_accepted_email(worker, job, application)
+        send_email_async(subject, html_message, [worker.email])
+        logger.info(f"Application accepted email queued for {worker.email} (job {job.id})")
+    except Exception as e:
+        logger.error(f"send_application_accepted_email error: {str(e)}")
+
+
 def send_admin_invite_email(user, invite_link: str, invited_by=None):
     """
     Send an invite email to a newly created (dormant) admin account.

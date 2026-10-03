@@ -28,7 +28,7 @@ from applications.serializers import JobApplicationSerializer, JobApplicationLis
 from rest_framework.permissions import IsAdminUser
 from utils.views import (
     send_otp_to_email, send_admin_invite_email, send_account_rejected_email, send_account_approved_email,
-    send_job_approved_email, send_job_rejected_email,
+    send_job_approved_email, send_job_rejected_email, send_application_accepted_email,
 )
 from accounts.rejection import REJECTION_REASONS, reason_labels, reason_fixes
 from jobs.rejection import JOB_REJECTION_REASONS, job_reason_labels, job_reason_fixes
@@ -568,14 +568,17 @@ class UpdateJobApplicationStatusView(APIView):
                  "job": application.job.title, "notes": employer_notes},
             )
 
-            # Notify worker of application status update
-            send_otp_to_email(
-                user=application.worker,
-                otp_type='job_notification',
-                action_type='application_status_updated',
-                job_title=application.job.title,
-                job_status=application.get_status_display()
-            )
+            # Notify worker: a proper congratulations when accepted, otherwise a status update
+            if new_status == 'accepted':
+                send_application_accepted_email(application.worker, application.job, application)
+            else:
+                send_otp_to_email(
+                    user=application.worker,
+                    otp_type='job_notification',
+                    action_type='application_status_updated',
+                    job_title=application.job.title,
+                    job_status=application.get_status_display()
+                )
 
         # Use the JobApplicationSerializer for the response representation
         serializer = JobApplicationSerializer(application, context={"request": request})

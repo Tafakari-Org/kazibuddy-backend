@@ -17,7 +17,7 @@ from .serializers import (
 from applications.models import JobApplication
 from jobs.models import Job
 from utils.custom_pagination import CustomPagination
-from utils.views import send_otp_to_email
+from utils.views import send_otp_to_email, send_application_accepted_email
 from .tasks import notify_rejected_applicants
 from auditlogs.models import AuditLog
 from auditlogs.service import log_action
@@ -112,16 +112,11 @@ class ListCreateAssignmentView(APIView):
                  "worker": assignment.worker.email, "employer": assignment.employer.email},
             )
 
-            # Notify worker
-            send_otp_to_email(
-                user=assignment.worker,
-                otp_type='assignment_notification',
-                action_type='assignment_created',
-                job_title=assignment.job.title,
-                employer_name=assignment.employer.full_name,
-                start_date=str(assignment.job.start_date),
-                agreed_rate=str(assignment.job.budget_min),
-                payment_type=assignment.job.payment_type,
+            # Congratulate the worker: their application was accepted
+            send_application_accepted_email(
+                assignment.worker,
+                assignment.job,
+                JobApplication.objects.filter(job=assignment.job, worker=assignment.worker).first(),
             )
 
             # Notify employer
