@@ -1,3 +1,4 @@
+import uuid
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -34,6 +35,34 @@ logger = logging.getLogger(__name__)
 
 
 
+def _approve_user(request, user):
+    """
+    Approve one user: mark verified, notify them, and write an audit log.
+    Returns (approved, reason) — reason explains a skip.
+    """
+    if not getattr(user, 'email_verified', False):
+        return False, "Email not verified"
+    if user.is_verified:
+        return False, "Already approved"
+
+    # Atomic: is_verified + updated_at must update together
+    with transaction.atomic():
+        user.is_verified = True
+        user.updated_at = timezone.now()
+        user.save()
+
+        # Notify user of approval
+        send_otp_to_email(
+            user=user,
+            otp_type='admin_notification',
+            action_type='approved'
+        )
+
+    log_action(request, AuditLog.Action.USER_APPROVED, AuditLog.TargetType.USER, user.id, user.email,
+               {"full_name": user.full_name})
+    return True, None
+
+
 class ApproveUserView(APIView):
     permission_classes = [permissions.IsAdminUser]
 
@@ -42,38 +71,83 @@ class ApproveUserView(APIView):
             user = CustomUser.objects.get(id=user_id)
         except CustomUser.DoesNotExist:
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-        #check if email is already verified
-        try:
-            if not user.email_verified:
-                return Response({"error": "User email is not verified"}, status=status.HTTP_400_BAD_REQUEST)
-        except AttributeError:
-            return Response({"error": "User email verification status unknown"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if user.is_verified:
+        approved, reason = _approve_user(request, user)
+        if not approved and reason == "Already approved":
             return Response({"message": "User is already verified"}, status=status.HTTP_200_OK)
-
-        # Atomic: is_verified + updated_at must update together
-        with transaction.atomic():
-            user.is_verified = True
-            user.updated_at = timezone.now()
-            user.save()
-            
-            # Notify user of approval
-            send_otp_to_email(
-                user=user, 
-                otp_type='admin_notification', 
-                action_type='approved'
-            )
-
-        log_action(request, AuditLog.Action.USER_APPROVED, AuditLog.TargetType.USER, user.id, user.email,
-                   {"full_name": user.full_name})
+        if not approved:
+            return Response({"error": "User email is not verified"}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ApproveUserSerializer(user)
         return Response(
             {"message": "User approved successfully", "user": serializer.data},
             status=status.HTTP_200_OK
         )
-    
+
+
+MAX_BULK_APPROVE = 100
+
+
+class BulkApproveUsersView(APIView):
+    """
+    POST /api/adminpanel/users/bulk-approve/
+    Body: {"user_ids": ["<uuid>", ...]}  (max 100)
+
+    Approves every eligible user and reports the ones skipped, with a reason.
+    Each approval is its own transaction, so one failure doesn't undo the rest.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request):
+        user_ids = request.data.get("user_ids")
+        if not isinstance(user_ids, list) or not user_ids:
+            return Response({"error": "user_ids must be a non-empty list"}, status=status.HTTP_400_BAD_REQUEST)
+        if len(user_ids) > MAX_BULK_APPROVE:
+            return Response(
+                {"error": f"You can approve at most {MAX_BULK_APPROVE} users at once."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        unique_ids = list(dict.fromkeys(str(i) for i in user_ids))
+        users = {}
+        for user in CustomUser.objects.filter(id__in=[i for i in unique_ids if _is_uuid(i)]):
+            users[str(user.id)] = user
+
+        approved, skipped = [], []
+        for uid in unique_ids:
+            user = users.get(uid)
+            if user is None:
+                skipped.append({"id": uid, "email": None, "full_name": None, "reason": "User not found"})
+                continue
+            try:
+                ok, reason = _approve_user(request, user)
+            except Exception as e:
+                logger.error(f"Bulk approve failed for user {uid}: {e}", exc_info=True)
+                ok, reason = False, "Unexpected error"
+            entry = {"id": uid, "email": user.email, "full_name": user.full_name}
+            if ok:
+                approved.append(entry)
+            else:
+                skipped.append({**entry, "reason": reason})
+
+        return Response(
+            {
+                "message": f"Approved {len(approved)} of {len(unique_ids)} users.",
+                "approved": approved,
+                "skipped": skipped,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+def _is_uuid(value):
+    try:
+        uuid.UUID(str(value))
+        return True
+    except ValueError:
+        return False
+
+
 class DeactivateUserView(APIView):
     permission_classes = [permissions.IsAdminUser]
 

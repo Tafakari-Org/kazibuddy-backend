@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import (
     ApproveUserView,
+    BulkApproveUsersView,
     DeactivateUserView,
     AllJobsListView,
     ApproveJobView,
@@ -26,6 +27,7 @@ from .views import (
 
 urlpatterns = [
     # existing routes
+    path('users/bulk-approve/', BulkApproveUsersView.as_view(), name='bulk_approve_users'),
     path('users/<uuid:user_id>/approve/', ApproveUserView.as_view(), name='approve_user'),
     path('users/<uuid:user_id>/deactivate/', DeactivateUserView.as_view(), name='deactivate_user'),
     path('admin/jobs/', AllJobsListView.as_view(), name='all-jobs-list'),
