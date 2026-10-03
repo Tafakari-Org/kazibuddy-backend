@@ -16,7 +16,7 @@ from jobs.models import Job, JobCategory
 
 TREND_DAYS = 14
 # Dashboard cards are previews; full lists live on their own pages.
-PREVIEW_LIMIT = 10
+PREVIEW_LIMIT = 6
 ADMIN_TYPES = ('admin', 'super_admin')
 
 
