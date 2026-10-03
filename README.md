@@ -1,8 +1,19 @@
 # KaziBuddy — Backend
 
-Django REST API for **KaziBuddy**, a job marketplace that connects semi-skilled workers with employers. Users register, get verified by an admin, post or apply for jobs, track assignments, and message each other in real time.
+Django REST API for **[KaziBuddy](https://kazibuddy.tech)**, a job marketplace that connects semi-skilled workers with employers. Users register, get verified by an admin, post or apply for jobs, track assignments, and message each other in real time.
 
-Frontend: [Tafakari-Org/kazibuddy-frontend](https://github.com/Tafakari-Org/kazibuddy-frontend)
+---
+
+## Links
+
+| | |
+|---|---|
+| 🌐 Live site | https://kazibuddy.tech |
+| 🔌 Live API | https://api.kazibuddy.tech/api/ |
+| 🖥️ Frontend repo | [Tafakari-Org/kazibuddy-frontend](https://github.com/Tafakari-Org/kazibuddy-frontend) |
+| ⚙️ Backend repo | [Tafakari-Org/kazibuddy-backend](https://github.com/Tafakari-Org/kazibuddy-backend) |
+| 📘 Frontend setup | [kazibuddy-frontend → Getting started](https://github.com/Tafakari-Org/kazibuddy-frontend#getting-started) |
+| 📗 Backend setup | [kazibuddy-backend → Getting started](https://github.com/Tafakari-Org/kazibuddy-backend#getting-started-docker-recommended) |
 
 ---
 
@@ -108,6 +119,8 @@ Limits:
 4. Open:
    - API: http://localhost:8000/api/
    - Django admin: http://localhost:8000/admin/
+
+   To run the UI against it, follow the [frontend setup](https://github.com/Tafakari-Org/kazibuddy-frontend#getting-started) with `NEXT_PUBLIC_BASE_URL=http://localhost:8000/api`.
 
 Optional sample data:
 ```bash
