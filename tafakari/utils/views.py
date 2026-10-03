@@ -298,7 +298,7 @@ SUPPORT_EMAIL = "support@kazibuddy.co.ke"
 
 def build_account_rejected_email(user, reasons, fixes, note=""):
     """Return (subject, html) for the 'account not approved' email."""
-    base = str(getattr(settings, 'FRONTEND_URL', '') or 'https://kazibuddy.tech').rstrip('/')
+    base = _frontend_base()
     context = {
         'full_name': getattr(user, 'full_name', '') or user.email,
         'email': user.email,
@@ -327,6 +327,44 @@ def send_account_rejected_email(user, reasons, fixes, note=""):
         logger.info(f"Account rejection email queued for {user.email}")
     except Exception as e:
         logger.error(f"send_account_rejected_email error: {str(e)}")
+
+
+def _frontend_base():
+    return str(getattr(settings, 'FRONTEND_URL', '') or 'https://kazibuddy.tech').rstrip('/')
+
+
+def build_account_approved_email(user, open_jobs=0, missing=None):
+    """Return (subject, html) for the 'welcome, you're approved' email."""
+    base = _frontend_base()
+    full_name = getattr(user, 'full_name', '') or user.email
+    context = {
+        'full_name': full_name,
+        'first_name': full_name.split()[0] if full_name else 'there',
+        'email': user.email,
+        'open_jobs': open_jobs,
+        'missing': missing or [],
+        'approved_on': timezone.localtime().strftime('%d %B %Y'),
+        'dashboard_url': f"{base}/dashboard",
+        'find_jobs_url': f"{base}/dashboard?tab=find-jobs",
+        'post_job_url': f"{base}/dashboard?tab=post-job",
+        'profile_url': f"{base}/profile",
+        'support_email': SUPPORT_EMAIL,
+    }
+    html = render_to_string('email_templates/account_approved_email.html', context)
+    return "You're approved — welcome to KaziBuddy!", html
+
+
+def send_account_approved_email(user, open_jobs=0, missing=None):
+    """Welcome email after an admin approves the account. Never raises."""
+    try:
+        if not user.email:
+            logger.error(f"User {user.id} has no email address — cannot send approval email")
+            return
+        subject, html_message = build_account_approved_email(user, open_jobs, missing)
+        send_email_async(subject, html_message, [user.email])
+        logger.info(f"Account approval email queued for {user.email}")
+    except Exception as e:
+        logger.error(f"send_account_approved_email error: {str(e)}")
 
 
 def send_admin_invite_email(user, invite_link: str, invited_by=None):

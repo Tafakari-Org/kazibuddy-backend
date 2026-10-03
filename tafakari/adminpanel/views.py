@@ -26,7 +26,9 @@ from .serializers import (
 from applications.models import JobApplication
 from applications.serializers import JobApplicationSerializer, JobApplicationListSerializer
 from rest_framework.permissions import IsAdminUser
-from utils.views import send_otp_to_email, send_admin_invite_email, send_account_rejected_email
+from utils.views import (
+    send_otp_to_email, send_admin_invite_email, send_account_rejected_email, send_account_approved_email,
+)
 from accounts.rejection import REJECTION_REASONS, reason_labels, reason_fixes
 from utils.custom_error import error_response
 from utils.custom_pagination import CustomPagination
@@ -34,6 +36,22 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+
+def _open_jobs_count():
+    return Job.objects.filter(admin_approved=True, is_assigned=False).exclude(status=Job.Status.CANCELLED).count()
+
+
+def _profile_gaps(user):
+    """Profile items still missing, phrased as suggestions for the welcome email."""
+    gaps = []
+    if not user.profile_photo_url:
+        gaps.append("Add a profile photo so people recognise you")
+    if not user.phone_number:
+        gaps.append("Add your phone number")
+    if not UserDocument.objects.filter(user_id=user).exists():
+        gaps.append("Upload your certificates (up to 10 documents)")
+    return gaps
 
 
 def _approve_user(request, user):
@@ -55,12 +73,8 @@ def _approve_user(request, user):
         user.updated_at = timezone.now()
         user.save()
 
-        # Notify user of approval
-        send_otp_to_email(
-            user=user,
-            otp_type='admin_notification',
-            action_type='approved'
-        )
+    # Welcome email with how to get started (sent after the transaction commits).
+    send_account_approved_email(user, open_jobs=_open_jobs_count(), missing=_profile_gaps(user))
 
     log_action(request, AuditLog.Action.USER_APPROVED, AuditLog.TargetType.USER, user.id, user.email,
                {"full_name": user.full_name})

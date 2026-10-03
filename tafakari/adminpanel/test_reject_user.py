@@ -5,7 +5,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import CustomUser
 from auditlogs.models import AuditLog
-from utils.views import build_account_rejected_email
+from utils.views import build_account_approved_email, build_account_rejected_email
 
 
 def make_user(email, phone, **extra):
@@ -60,7 +60,7 @@ class RejectUserTests(TestCase):
         pending = self.admin_client.get('/api/adminpanel/users/pending/').json()['results']['data']
         self.assertIn(str(self.user.id), [u['user_id'] for u in pending])
 
-    @patch('adminpanel.views.send_otp_to_email')
+    @patch('adminpanel.views.send_account_approved_email')
     @patch('adminpanel.views.send_account_rejected_email')
     def test_approving_clears_rejection(self, _mail, _otp):
         self.admin_client.post(self.url, {'reasons': ['documents_missing']}, format='json')
@@ -90,3 +90,25 @@ class RejectUserTests(TestCase):
         self.assertIn('Request review again', html)
         self.assertIn('/profile', html)
         self.assertIn('Blurry &lt;b&gt;photo&lt;/b&gt;.', html)  # note is escaped
+
+
+class ApprovedEmailTests(TestCase):
+    def test_approval_sends_welcome_with_profile_gaps(self):
+        admin = make_user('a2@t.io', '0700000011'); admin.is_staff = True; admin.save()
+        user = make_user('new@t.io', '0700000012', email_verified=True)
+        client = APIClient(); client.force_authenticate(admin)
+        with patch('adminpanel.views.send_account_approved_email') as mail:
+            self.assertEqual(client.post(f'/api/adminpanel/users/{user.id}/approve/').status_code, 200)
+        _, kwargs = mail.call_args
+        self.assertEqual(kwargs['open_jobs'], 0)
+        self.assertIn('Upload your certificates (up to 10 documents)', kwargs['missing'])
+        self.assertIn('Add a profile photo so people recognise you', kwargs['missing'])
+
+    def test_email_renders(self):
+        user = make_user('w@t.io', '0700000013')
+        subject, html = build_account_approved_email(user, open_jobs=12, missing=['Add your phone number'])
+        self.assertIn('approved', subject)
+        self.assertIn('You&rsquo;re in, Jane!', html)
+        self.assertIn('There are <strong>12</strong> open jobs', html)
+        self.assertIn('Add your phone number', html)
+        self.assertIn('/dashboard?tab=find-jobs', html)

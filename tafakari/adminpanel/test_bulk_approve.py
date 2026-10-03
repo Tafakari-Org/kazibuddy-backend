@@ -15,7 +15,7 @@ def make_user(email, phone, **extra):
                                           phone_number=phone, **extra)
 
 
-@patch('adminpanel.views.send_otp_to_email')
+@patch('adminpanel.views.send_account_approved_email')
 class BulkApproveTests(TestCase):
     def setUp(self):
         self.admin = make_user('admin@t.io', '0700000001')

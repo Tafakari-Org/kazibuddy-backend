@@ -18,6 +18,7 @@ def make_user(email, phone, staff=False, **extra):
     return user
 
 
+@patch('adminpanel.views.send_account_approved_email', new=lambda *a, **k: None)
 @patch('adminpanel.views.send_otp_to_email')
 class AuditLogTests(TestCase):
     def setUp(self):
