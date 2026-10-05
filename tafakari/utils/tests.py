@@ -1,125 +1,97 @@
-from django.test import TestCase
-from .views import upload_file_to_supabase, get_file_url_from_supabase, delete_file_from_supabase
 import os
 import tempfile
-import time
-from django.conf import settings
+from unittest.mock import MagicMock, patch
 
-class FileUploadTestCase(TestCase):
-    
+from django.test import SimpleTestCase
+
+from .views import delete_file_from_supabase, get_file_url_from_supabase, upload_file_to_supabase
+
+PUBLIC_BASE = "https://example.supabase.co/storage/v1/object/public/tafakari"
+
+
+def fake_client(existing=(), upload_error=None, remove_error=None):
+    """A stand-in Supabase client whose bucket lists `existing` file names."""
+    bucket = MagicMock()
+    bucket.list.return_value = [{"name": n} for n in existing]
+    bucket.get_public_url.side_effect = lambda path: f"{PUBLIC_BASE}/{path}"
+    # Successful SDK calls return plain data, with no `.error` attribute.
+    bucket.upload.return_value = {"Key": "uploaded"}
+    bucket.remove.return_value = [{"name": "removed"}]
+    if upload_error:
+        bucket.upload.side_effect = upload_error
+    if remove_error:
+        bucket.remove.side_effect = remove_error
+    client = MagicMock()
+    client.storage.from_.return_value = bucket
+    return client, bucket
+
+
+class SupabaseStorageTests(SimpleTestCase):
+    """Supabase helpers, tested against a fake client — no network or real bucket involved."""
+
     def setUp(self):
-        """Set up test fixtures"""
-        self.test_filename = f'test_file_{int(time.time())}.txt'
-        self.test_content = 'This is a test file for Supabase operations.'
-        
-        # Check if Supabase is configured
-        if not hasattr(settings, 'SUPABASE_URL') or not hasattr(settings, 'SUPABASE_KEY'):
-            self.skipTest("Supabase not configured - skipping tests")
-        
-        if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
-            self.skipTest("Supabase credentials not provided - skipping tests")
-    
-    def test_upload_file_to_supabase(self):
-        """Test file upload to Supabase"""
-        # Create a temporary test file
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-            f.write(self.test_content)
-            temp_file_path = f.name
-        
-        try:
-            # Test upload
-            response = upload_file_to_supabase(temp_file_path, self.test_filename, 'documents')
-            print(f"Upload response: {response}")
-            
-            # Verify response is a URL
-            self.assertIsNotNone(response)
-            self.assertTrue(response.startswith("https://"), f"Expected URL, got: {response}")
-            
-        except Exception as e:
-            self.fail(f"Upload test failed: {str(e)}")
-        finally:
-            # Clean up temp file
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-    
-    def test_get_file_url_from_supabase(self):
-        """Test getting file URL from Supabase"""
-        try:
-            # First upload a file to ensure it exists
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-                f.write(self.test_content)
-                temp_file_path = f.name
-            
-            # Upload file first
-            upload_response = upload_file_to_supabase(temp_file_path, self.test_filename, 'documents')
-            self.assertIsNotNone(upload_response)
-            
-            # Now test getting URL
-            public_url = get_file_url_from_supabase(self.test_filename, 'documents')
-            print(f"Public URL for the file: {public_url}")
-            
-            self.assertIsNotNone(public_url)
-            self.assertTrue(public_url.startswith("https://"), f"Expected URL, got: {public_url}")
-            
-        except Exception as e:
-            self.fail(f"Get URL test failed: {str(e)}")
-        finally:
-            # Clean up
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-    
-    def test_delete_file_from_supabase(self):
-        """Test file deletion from Supabase"""
-        try:
-            # First upload a file to ensure it exists for deletion
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-                f.write(self.test_content)
-                temp_file_path = f.name
-            
-            # Upload file first
-            upload_response = upload_file_to_supabase(temp_file_path, self.test_filename, 'documents')
-            self.assertIsNotNone(upload_response)
-            
-            # Small delay to ensure upload completes
-            time.sleep(1)
-            
-            # Now test deletion
-            delete_response = delete_file_from_supabase(self.test_filename, 'documents')
-            print(f"File deletion response: {delete_response}")
-            
-            self.assertTrue(delete_response, "Delete operation should return True")
-            
-        except Exception as e:
-            self.fail(f"Delete test failed: {str(e)}")
-        finally:
-            # Clean up temp file
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-    
-    def tearDown(self):
-        """Clean up after tests"""
-        # Attempt to clean up any remaining test files
-        try:
-            delete_file_from_supabase(self.test_filename, 'documents')
-        except:
-            pass  # Ignore cleanup errors
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
+            f.write("test content")
+            self.path = f.name
+        self.addCleanup(os.remove, self.path)
 
+    def _patch(self, client):
+        p = patch("utils.views.get_supabase_client", return_value=client)
+        p.start()
+        self.addCleanup(p.stop)
 
-# Additional debugging helper
-def test_supabase_connection():
-    """Test basic Supabase connection"""
-    from .views import get_supabase_client
-    
-    client = get_supabase_client()
-    if not client:
-        print("❌ Supabase client creation failed")
-        return False
-    
-    try:
-        # Test basic bucket access
-        buckets = client.storage.list_buckets()
-        print(f"✅ Supabase connection successful. Available buckets: {buckets}")
-        return True
-    except Exception as e:
-        print(f"❌ Supabase connection test failed: {str(e)}")
-        return False
+    def test_upload_returns_public_url(self):
+        client, bucket = fake_client()
+        self._patch(client)
+        url = upload_file_to_supabase(self.path, "cv.pdf", "documents")
+        self.assertEqual(url, f"{PUBLIC_BASE}/documents/cv.pdf")
+        kwargs = bucket.upload.call_args.kwargs
+        self.assertEqual(kwargs["path"], "documents/cv.pdf")
+        self.assertEqual(kwargs["file"], b"test content")
+        self.assertEqual(kwargs["file_options"]["content-type"], "application/pdf")
+
+    def test_upload_skips_existing_file(self):
+        client, bucket = fake_client(existing=["cv.pdf"])
+        self._patch(client)
+        self.assertEqual(upload_file_to_supabase(self.path, "cv.pdf", "documents"), f"{PUBLIC_BASE}/documents/cv.pdf")
+        bucket.upload.assert_not_called()
+
+    def test_upload_already_exists_error_returns_url(self):
+        client, _ = fake_client(upload_error=Exception("The resource already exists"))
+        self._patch(client)
+        self.assertEqual(upload_file_to_supabase(self.path, "a.txt", "documents"), f"{PUBLIC_BASE}/documents/a.txt")
+
+    def test_upload_failure_raises(self):
+        client, _ = fake_client(upload_error=Exception("network down"))
+        self._patch(client)
+        with self.assertRaisesMessage(Exception, "network down"):
+            upload_file_to_supabase(self.path, "a.txt", "documents")
+
+    def test_upload_rejects_unknown_type_and_missing_client(self):
+        self._patch(fake_client()[0])
+        with self.assertRaises(ValueError):
+            upload_file_to_supabase(self.path, "a.exe", "binaries")
+        with patch("utils.views.get_supabase_client", return_value=None), self.assertRaises(ValueError):
+            upload_file_to_supabase(self.path, "a.txt", "documents")
+
+    def test_get_file_url(self):
+        self._patch(fake_client()[0])
+        self.assertEqual(get_file_url_from_supabase("pic.png", "images"), f"{PUBLIC_BASE}/images/pic.png")
+
+    def test_delete_existing_file(self):
+        client, bucket = fake_client(existing=["a.txt"])
+        self._patch(client)
+        self.assertTrue(delete_file_from_supabase("a.txt", "documents"))
+        bucket.remove.assert_called_once_with(["documents/a.txt"])
+
+    def test_delete_missing_file_counts_as_deleted(self):
+        client, bucket = fake_client(existing=[])
+        self._patch(client)
+        self.assertTrue(delete_file_from_supabase("gone.txt", "documents"))
+        bucket.remove.assert_not_called()
+
+    def test_delete_failure_raises(self):
+        client, _ = fake_client(existing=["a.txt"], remove_error=Exception("permission denied"))
+        self._patch(client)
+        with self.assertRaisesMessage(Exception, "permission denied"):
+            delete_file_from_supabase("a.txt", "documents")

@@ -20,7 +20,7 @@ def make_user(
     phone_number="+254700000000",
     password="StrongPass123!",
     full_name="Test User",
-    user_type="worker",
+    user_type="user",
     email_verified=True,
     is_verified=True,
     is_active=True,
@@ -49,7 +49,7 @@ class CustomUserManagerTests(TestCase):
             email="user@example.com",
             password="Pass123!",
             full_name="Email User",
-            user_type="worker",
+            user_type="user",
         )
         self.assertEqual(user.email, "user@example.com")
         self.assertTrue(user.check_password("Pass123!"))
@@ -61,20 +61,20 @@ class CustomUserManagerTests(TestCase):
             phone_number="+254711111111",
             password="Pass123!",
             full_name="Phone User",
-            user_type="employer",
+            user_type="user",
         )
         self.assertEqual(user.phone_number, "+254711111111")
         self.assertTrue(user.check_password("Pass123!"))
 
     def test_create_user_without_email_or_phone_raises(self):
         with self.assertRaises(ValueError):
-            CustomUser.objects.create_user(password="Pass123!", full_name="No ID", user_type="worker")
+            CustomUser.objects.create_user(password="Pass123!", full_name="No ID", user_type="user")
 
     def test_create_user_without_password_sets_unusable(self):
         user = CustomUser.objects.create_user(
             email="nopw@example.com",
             full_name="No Password",
-            user_type="worker",
+            user_type="user",
         )
         self.assertFalse(user.has_usable_password())
 
@@ -105,7 +105,7 @@ class CustomUserManagerTests(TestCase):
             email="User@EXAMPLE.COM",
             password="Pass123!",
             full_name="Norm User",
-            user_type="worker",
+            user_type="user",
         )
         self.assertEqual(user.email, "User@example.com")
 
@@ -129,10 +129,10 @@ class CustomUserModelTests(TestCase):
         self.assertIsNone(user.deleted_at)
 
     def test_user_types_choices(self):
+        # Workers and employers share the single "user" type; admins are separate.
         valid_types = [c[0] for c in CustomUser.USER_TYPES]
-        self.assertIn("worker", valid_types)
-        self.assertIn("employer", valid_types)
-        self.assertIn("admin", valid_types)
+        self.assertEqual(valid_types, ["user", "admin", "super_admin"])
+        self.assertEqual(make_user().user_type, "user")
 
 
 class OTPVerificationModelTests(TestCase):
