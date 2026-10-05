@@ -179,7 +179,9 @@ class JobDetailView(views.APIView):
 
     def get(self, request, job_id):
         try:
-            job = Job.objects.get(pk=job_id)
+            job = (Job.objects.select_related('employer', 'category')
+                   .prefetch_related('images', 'attachments', 'job_skills__skill')
+                   .get(pk=job_id))
             serializer = JobSerializer(job, context={'request': request})
             return Response(
                 {

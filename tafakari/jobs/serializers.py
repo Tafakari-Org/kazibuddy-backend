@@ -22,10 +22,12 @@ class JobCategorySerializer(serializers.ModelSerializer):
 
 
 class JobSkillSerializer(serializers.ModelSerializer):
+    skill_name = serializers.CharField(source='skill.name', read_only=True)
+
     class Meta:
         model = JobSkill
-        fields = ['id', 'skill', 'job', 'is_required', 'experience_level']
-        read_only_fields = ['id', 'job']
+        fields = ['id', 'skill', 'skill_name', 'job', 'is_required', 'experience_level']
+        read_only_fields = ['id', 'job', 'skill_name']
         extra_kwargs = {
             'is_required': {'required': False},
             'experience_level': {'required': False},
@@ -76,6 +78,13 @@ class JobSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             data.pop('employer', None)
+        # Why a listing was declined is only for admins and the job's own poster.
+        user = getattr(request, 'user', None)
+        if user and user.is_authenticated and (user.is_staff or user.pk == instance.employer_id):
+            from .rejection import job_reason_labels
+            data['rejected_at'] = instance.rejected_at
+            data['rejection_reasons'] = job_reason_labels(instance.rejection_reasons or [])
+            data['rejection_note'] = instance.rejection_note
         return data
 
     def create(self, validated_data):
