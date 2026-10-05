@@ -1,5 +1,6 @@
 from django.urls import path
 from .dashboard import AdminDashboardStatsView
+from .job_analytics import AdminJobAnalyticsView
 from .views import (
     ApproveUserView,
     BulkApproveUsersView,
@@ -39,6 +40,7 @@ urlpatterns = [
     path('users/<uuid:user_id>/approve/', ApproveUserView.as_view(), name='approve_user'),
     path('users/<uuid:user_id>/deactivate/', DeactivateUserView.as_view(), name='deactivate_user'),
     path('admin/jobs/', AllJobsListView.as_view(), name='all-jobs-list'),
+    path('jobs/analytics/', AdminJobAnalyticsView.as_view(), name='admin-job-analytics'),
     path('jobs/pending/', PendingJobsListView.as_view(), name='pending-jobs-list'),
     path('jobs/rejection-reasons/', JobRejectionReasonsView.as_view(), name='job-rejection-reasons'),
     path('jobs/<uuid:job_id>/reject/', RejectJobView.as_view(), name='reject-job'),
