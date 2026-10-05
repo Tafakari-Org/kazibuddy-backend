@@ -4,6 +4,7 @@ from .search_serializers import JobSearchSerializer, JobSearchQuerySerializer
 from rest_framework import views, permissions, status
 from .models import Job, JobCategory, JobSkill, JobImage, JobAttachment
 from applications.models import JobApplication
+from assignments.models import AssignmentCheckin
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated,IsAdminUser
 from django.db import DatabaseError,transaction
@@ -469,6 +470,12 @@ class DeleteJobView(views.APIView):
         # ── Collect file URLs before deleting the DB record ────────────────
         image_urls = [img.image_url for img in job.images.all() if img.image_url]
         attachment_urls = [att.file_url for att in job.attachments.all() if att.file_url]
+        # Check-in rows cascade away with the job's assignment; their photos on disk don't.
+        checkin_photo_urls = list(
+            AssignmentCheckin.objects.filter(assignment__job=job)
+            .exclude(photo_url__isnull=True).exclude(photo_url='')
+            .values_list('photo_url', flat=True)
+        )
  
         # ── Delete DB record atomically (cascades to images & attachments) ─
         # Files are intentionally removed AFTER a successful DB delete.
@@ -501,6 +508,14 @@ class DeleteJobView(views.APIView):
                     logger.warning(f"Attachment file not found on storage (job={job_id}): {url}")
             except Exception as e:
                 logger.error(f"Failed to delete attachment (job={job_id}, url={url}): {e}", exc_info=True)
+
+        for url in checkin_photo_urls:
+            try:
+                deleted = file_service.remove(url)
+                if not deleted:
+                    logger.warning(f"Check-in photo not found on storage (job={job_id}): {url}")
+            except Exception as e:
+                logger.error(f"Failed to delete check-in photo (job={job_id}, url={url}): {e}", exc_info=True)
  
         # ── Notify the job's poster (not necessarily whoever deleted it —
         # an admin may have performed the deletion on the poster's behalf) ──
