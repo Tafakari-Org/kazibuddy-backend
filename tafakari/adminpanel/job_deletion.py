@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from applications.models import JobApplication
+from assignments.models import AssignmentCheckin
 from auditlogs.models import AuditLog
 from auditlogs.service import log_action
 from jobs.deletion import JOB_DELETION_REASONS, job_deletion_labels
@@ -51,7 +52,8 @@ class BulkDeleteJobsView(APIView):
     POST /api/adminpanel/jobs/bulk-delete/
     Body: {"job_ids": [...], "reasons": ["duplicate", ...], "note": "optional message to the poster"}
 
-    Permanently deletes each job (cascading to its applications and assignment), emails
+    Permanently deletes each job (cascading to its applications and assignment) and removes
+    its photos, attachments and check-in photos from storage, emails
     the poster the reasons, and records a job.deleted entry in the audit log.
     """
     permission_classes = [permissions.IsAdminUser]
@@ -95,8 +97,13 @@ class BulkDeleteJobsView(APIView):
                 poster_email = getattr(job.employer, "email", None)
                 subject, html = build_job_deleted_email(job, labels, note) if poster_email else (None, None)
                 applications = JobApplication.objects.filter(job=job).count()
+                # The job's photos and attachments, plus the assignment's check-in photos
+                # (their rows cascade away with the job; the files on disk don't).
                 file_urls = [i.image_url for i in job.images.all() if i.image_url] + \
-                            [a.file_url for a in job.attachments.all() if a.file_url]
+                            [a.file_url for a in job.attachments.all() if a.file_url] + \
+                            list(AssignmentCheckin.objects.filter(assignment__job=job)
+                                 .exclude(photo_url__isnull=True).exclude(photo_url='')
+                                 .values_list('photo_url', flat=True))
                 details = {"employer": poster_email, "status": job.status, "applications": applications,
                            "reasons": labels, "note": note, "bulk": len(unique_ids) > 1}
 
