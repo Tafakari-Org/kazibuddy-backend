@@ -204,6 +204,13 @@ def send_otp_to_email(user, otp_code=None, otp_type='registration', **kwargs):
             'otp_type': otp_type.replace('_', ' ').capitalize(),
         }
         
+        # Sign-up codes also get a one-click link that opens the verify page with the code filled in.
+        if otp_type == 'registration' and otp_code:
+            from urllib.parse import urlencode
+            context['verify_url'] = f"{_frontend_base()}/auth/verify-email?" + urlencode(
+                {'userId': str(user.id), 'email': user.email, 'code': otp_code})
+            context['expires_minutes'] = max(1, round(getattr(settings, 'OTP_TTL_SECONDS', 300) / 60))
+
         # Add any extra context passed through kwargs
         context.update(kwargs)
         

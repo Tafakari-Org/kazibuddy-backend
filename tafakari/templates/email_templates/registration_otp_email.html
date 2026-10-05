@@ -375,6 +375,16 @@
                 <div class="otp-expiry"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8B1A35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {% blocktrans trimmed %}This code expires in 5 minutes{% endblocktrans %}</div>
             </div>
 
+            {% if verify_url %}
+            <!-- ONE-CLICK VERIFY -->
+            <div style="text-align:center; margin: 0 0 28px;">
+                <a href="{{ verify_url }}" style="display:inline-block; background:#6B0020; color:#FFFFFF; text-decoration:none; font-weight:600; font-size:13px; letter-spacing:1px; text-transform:uppercase; padding:13px 30px; border-radius:3px; border:1px solid #6B0020; font-family:'Inter', sans-serif;">Verify my email</a>
+                <div style="font-size:12px; color:#6F4F5A; margin-top:10px; line-height:1.6;">
+                    Or open this link: <a href="{{ verify_url }}" style="color:#6B0020; word-break:break-all;">{{ verify_url }}</a>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- SECURITY NOTES -->
             <div class="security-card">
                 <div class="sec-title">Security Reminders</div>

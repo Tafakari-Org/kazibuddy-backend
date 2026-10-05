@@ -39,7 +39,7 @@ from utils.custom_error import error_response, _ok, _err, _serializer_errors_to_
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from utils.logger import get_logger
-from .tasks import cleanup_unverified_user
+from .otp_resend import schedule_unverified_cleanup, latest_otp_expiry
 import tempfile
 import os
 import mimetypes
@@ -209,25 +209,9 @@ class RegisterView(APIView):
             )
  
         # ── Step 3: Schedule cleanup if user never verifies ───────────────────
-        # Fires automatically once the OTP window closes.
-        # If email_verified is True by then, the task skips — fully idempotent.
-        otp_ttl = getattr(settings, 'OTP_TTL_SECONDS', 600)
-        cleanup_delay = otp_ttl + 30  # small buffer so task fires after expiry
- 
-        task = cleanup_unverified_user.apply_async(
-            args=[str(user.id)],
-            countdown=cleanup_delay,
-        )
-        try:
-            from django.core.cache import cache
-            cache.set(f"cleanup_task_id:{user.id}", task.id, timeout=cleanup_delay + 60)
-        except Exception as cache_err:
-            logger.warning(f"Could not cache cleanup task ID for user {user.id}: {cache_err}")
-
-        logger.info(
-            f"Cleanup task scheduled for user {user.id} in {cleanup_delay}s "
-            f"(OTP TTL: {otp_ttl}s)"
-        )
+        # Fires once the code has expired plus a grace period (so the user can
+        # still request a new code). Resends push it back; verified users are skipped.
+        schedule_unverified_cleanup(user)
  
         # ── Step 4: Upload profile photo (best-effort) ────────────────────────
         # Runs after OTP succeeds so there are no orphaned Supabase files
@@ -246,6 +230,7 @@ class RegisterView(APIView):
                 "success": True,
                 "message": "User registered. Check your email for the verification OTP.",
                 "user_id": str(user.id),
+                "otp_expires_at": latest_otp_expiry(user),
                 "user_data": {
                     "phone_number": user.phone_number,
                     "email": user.email,

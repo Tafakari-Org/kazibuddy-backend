@@ -176,7 +176,7 @@ class RegisterViewTests(APITestCase):
         "user_type": "worker",
     }
 
-    @patch("accounts.views.cleanup_unverified_user.apply_async")
+    @patch("accounts.otp_resend.cleanup_unverified_user.apply_async")
     @patch("accounts.views.send_otp_to_email")
     @patch("accounts.views.generate_otp", return_value="123456")
     def test_successful_registration(self, mock_otp, mock_email, mock_task):
@@ -185,8 +185,11 @@ class RegisterViewTests(APITestCase):
         self.assertTrue(response.data["success"])
         self.assertIn("user_id", response.data)
         self.assertTrue(CustomUser.objects.filter(email="newuser@example.com").exists())
+        self.assertIn("otp_expires_at", response.data)
+        # Unverified sign-ups are kept past code expiry so a new code can still be requested.
+        self.assertEqual(mock_task.call_args.kwargs["countdown"], 300 + 30 * 60)
 
-    @patch("accounts.views.cleanup_unverified_user.apply_async")
+    @patch("accounts.otp_resend.cleanup_unverified_user.apply_async")
     @patch("accounts.views.send_otp_to_email")
     @patch("accounts.views.generate_otp", return_value="123456")
     def test_duplicate_email_returns_400(self, mock_otp, mock_email, mock_task):
@@ -199,7 +202,7 @@ class RegisterViewTests(APITestCase):
         response = self.client.post(self.url, {"email": "x@x.com"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("accounts.views.cleanup_unverified_user.apply_async")
+    @patch("accounts.otp_resend.cleanup_unverified_user.apply_async")
     @patch("accounts.views.send_otp_to_email", side_effect=Exception("SMTP down"))
     @patch("accounts.views.generate_otp", return_value="123456")
     def test_otp_send_failure_rolls_back_user(self, mock_otp, mock_email, mock_task):

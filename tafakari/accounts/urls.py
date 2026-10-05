@@ -1,5 +1,6 @@
 from django.urls import path
 from .dashboard import MyDashboardView, RequestReviewView
+from .otp_resend import ResendOTPView
 from .views import (
     LoginView,
     RegisterView,
@@ -30,6 +31,7 @@ urlpatterns = [
     path('me/update/', UpdateUserProfileView.as_view(), name='update_profile'),
     path('me/delete/', DeleteAccountView.as_view(), name='delete_profile'),
     path('verify-email/', VerifyEmailView.as_view(), name='verify_email'),
+    path('resend-otp/', ResendOTPView.as_view(), name='resend_otp'),
 
     # Legacy OTP-based password reset (preserved)
     path('password-reset/', PasswordResetView.as_view(), name='password_reset'),
