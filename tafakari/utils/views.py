@@ -471,6 +471,39 @@ def send_job_rejected_email(job, reasons, fixes, note=""):
         logger.error(f"send_job_rejected_email error: {str(e)}")
 
 
+def build_job_deleted_email(job, reasons, note=""):
+    """Return (subject, html) for the 'your job was removed' email to the poster.
+
+    Call before job.delete() — the summary reads the job's images and attachments.
+    """
+    base = _frontend_base()
+    poster = job.employer
+    context = {
+        'full_name': getattr(poster, 'full_name', '') or poster.email,
+        'job': _job_summary(job),
+        'reasons': reasons,
+        'note': (note or '').strip(),
+        'deleted_on': timezone.localtime().strftime('%d %B %Y'),
+        'post_job_url': f"{base}/dashboard?tab=post-job",
+        'my_jobs_url': f"{base}/dashboard?tab=my-jobs",
+        'support_email': SUPPORT_EMAIL,
+    }
+    html = render_to_string('email_templates/job_deleted_email.html', context)
+    return f"Your job “{job.title}” was removed from KaziBuddy", html
+
+
+def send_job_deleted_email(poster_email, subject, html_message):
+    """Send a pre-built job-deleted email (built while the job still existed). Never raises."""
+    try:
+        if not poster_email:
+            logger.error("Deleted job has no poster email — cannot send deletion email")
+            return
+        send_email_async(subject, html_message, [poster_email])
+        logger.info(f"Job deletion email queued for {poster_email}")
+    except Exception as e:
+        logger.error(f"send_job_deleted_email error: {str(e)}")
+
+
 def build_application_accepted_email(worker, job, application=None):
     """Return (subject, html) for the 'you got the job' email to a worker."""
     base = _frontend_base()
