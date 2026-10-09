@@ -1,5 +1,6 @@
 from django.urls import path
 from .dashboard import AdminDashboardStatsView
+from .footer import FooterView
 from .job_analytics import AdminJobAnalyticsView
 from .job_deletion import BulkDeleteJobsView, JobDeletionReasonsView
 from .views import (
@@ -55,6 +56,9 @@ urlpatterns = [
     path('delete-users/', DeleteAllUsersView.as_view(), name='delete_all_users'),
     path('all-users/', GetAllUsersView.as_view(), name='get_all_users'),
     path('delete-user/<str:email>/', DeleteUserByEmailView.as_view(), name='delete_user_by_email'),
+
+    # public site footer (GET is public, PUT is admin-only)
+    path('footer/', FooterView.as_view(), name='site-footer'),
 
     # admin / superadmin management
     path('admins/', AdminListView.as_view(), name='admin-list'),

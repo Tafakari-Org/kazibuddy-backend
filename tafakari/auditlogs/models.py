@@ -39,6 +39,8 @@ class AuditLog(models.Model):
         ASSIGNMENT_CREATED = 'assignment.created', 'Assigned job to worker'
         ASSIGNMENT_UPDATED = 'assignment.updated', 'Edited assignment'
         ASSIGNMENT_DELETED = 'assignment.deleted', 'Removed assignment'
+        # Site content
+        FOOTER_UPDATED = 'site.footer_updated', 'Edited site footer'
         # The audit trail itself
         AUDIT_LOGS_DELETED = 'audit.deleted', 'Deleted audit log entries'
 
@@ -50,6 +52,7 @@ class AuditLog(models.Model):
         APPLICATION = 'application', 'Application'
         ASSIGNMENT = 'assignment', 'Assignment'
         AUDIT_LOG = 'audit_log', 'Audit log'
+        SITE = 'site', 'Site settings'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Keep the row (and the snapshot below) if the admin account is later deleted.
