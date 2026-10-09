@@ -66,6 +66,8 @@ def _approve_user(request, user):
     if user.is_verified:
         return False, "Already approved"
 
+    previously_rejected = user.rejected_at is not None
+
     # Atomic: is_verified + updated_at must update together
     with transaction.atomic():
         user.is_verified = True
@@ -76,10 +78,13 @@ def _approve_user(request, user):
         user.save()
 
     # Welcome email with how to get started (sent after the transaction commits).
-    send_account_approved_email(user, open_jobs=_open_jobs_count(), missing=_profile_gaps(user))
+    send_account_approved_email(user, open_jobs=_open_jobs_count(), missing=_profile_gaps(user),
+                                after_review=previously_rejected)
 
-    log_action(request, AuditLog.Action.USER_APPROVED, AuditLog.TargetType.USER, user.id, user.email,
-               {"full_name": user.full_name})
+    details = {"full_name": user.full_name}
+    if previously_rejected:
+        details["previously_rejected"] = True
+    log_action(request, AuditLog.Action.USER_APPROVED, AuditLog.TargetType.USER, user.id, user.email, details)
     return True, None
 
 
@@ -605,7 +610,33 @@ class DeleteAllUsersView(APIView):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             ) 
 
+# Account lifecycle, most decisive first: a deactivated account is "deactivated" even if it was
+# once approved, and an approved one is "approved" even if an earlier review rejected it.
+ACCOUNT_STATUS_FILTERS = {
+    'deactivated': Q(is_active=False),
+    'approved': Q(is_active=True, is_verified=True),
+    'rejected': Q(is_active=True, is_verified=False, rejected_at__isnull=False),
+    'pending': Q(is_active=True, is_verified=False, rejected_at__isnull=True, email_verified=True),
+    'unverified': Q(is_active=True, is_verified=False, rejected_at__isnull=True, email_verified=False),
+}
+
+
+def account_status(user):
+    if not user.is_active:
+        return 'deactivated'
+    if user.is_verified:
+        return 'approved'
+    if user.rejected_at:
+        return 'rejected'
+    return 'pending' if user.email_verified else 'unverified'
+
+
 class GetAllUsersView(APIView):
+    """
+    GET /api/adminpanel/all-users/?search=&user_type=&status=
+    status: approved | pending | rejected | unverified | deactivated
+    The response adds status_counts (for the current search/role filter, ignoring status).
+    """
     permission_classes = [permissions.IsAdminUser]
     pagination_class = CustomPagination
 
@@ -622,6 +653,19 @@ class GetAllUsersView(APIView):
         if user_type and user_type != 'all':
             users = users.filter(user_type=user_type)
 
+        status_counts = users.aggregate(**{
+            key: Count('id', filter=condition) for key, condition in ACCOUNT_STATUS_FILTERS.items()
+        })
+
+        account_state = request.query_params.get('status')
+        if account_state and account_state != 'all':
+            if account_state not in ACCOUNT_STATUS_FILTERS:
+                return Response(
+                    {"error": f"Unknown status. Use one of: {', '.join(ACCOUNT_STATUS_FILTERS)}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            users = users.filter(ACCOUNT_STATUS_FILTERS[account_state])
+
         users = users.order_by('-created_at')
         paginator = self.pagination_class()
         paginated_users = paginator.paginate_queryset(users, request)
@@ -637,9 +681,18 @@ class GetAllUsersView(APIView):
                 "profile_photo_url": user.profile_photo_url,
                 "email_verified": user.email_verified,
                 "phone_verified": user.phone_verified,
+                "status": account_status(user),
+                "is_active": user.is_active,
+                "is_verified": user.is_verified,
+                "rejected_at": user.rejected_at,
+                "rejection_reasons": reason_labels(user.rejection_reasons or []) if user.rejected_at else [],
+                "rejection_note": user.rejection_note if user.rejected_at else '',
+                "created_at": user.created_at,
             })
 
-        return paginator.get_paginated_response(user_data)
+        response = paginator.get_paginated_response(user_data)
+        response.data['status_counts'] = status_counts
+        return response
 
 #delete user by email endpoint 
 class DeleteUserByEmailView(APIView):
