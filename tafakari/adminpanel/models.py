@@ -65,3 +65,81 @@ class AdminInvite(models.Model):
     def generate_token(cls) -> str:
         """Return a cryptographically secure URL-safe token."""
         return secrets.token_urlsafe(48)
+
+
+class FooterSettings(models.Model):
+    """
+    Contact details shown in the public site footer. A single row (pk=1),
+    edited from the admin Footer page.
+    """
+
+    phone = models.CharField(max_length=32, blank=True)
+    email = models.EmailField(blank=True)
+    location = models.CharField(max_length=255, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Footer Settings"
+        verbose_name_plural = "Footer Settings"
+
+    def __str__(self):
+        return "Footer settings"
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class FooterSocialLink(models.Model):
+    """A social media profile linked from the footer."""
+
+    class Platform(models.TextChoices):
+        FACEBOOK = 'facebook', 'Facebook'
+        X = 'x', 'X (Twitter)'
+        INSTAGRAM = 'instagram', 'Instagram'
+        LINKEDIN = 'linkedin', 'LinkedIn'
+        YOUTUBE = 'youtube', 'YouTube'
+        TIKTOK = 'tiktok', 'TikTok'
+        WHATSAPP = 'whatsapp', 'WhatsApp'
+
+    platform = models.CharField(max_length=20, choices=Platform.choices)
+    url = models.URLField(max_length=500)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.get_platform_display()}: {self.url}"
+
+
+class FooterCategory(models.Model):
+    """A job category featured under "Popular Categories" in the footer."""
+
+    class Icon(models.TextChoices):
+        BRIEFCASE = 'briefcase', 'Briefcase'
+        SHIELD = 'shield', 'Shield'
+        HOME = 'home', 'Home'
+        WRENCH = 'wrench', 'Wrench'
+        CAR = 'car', 'Car'
+        USERS = 'users', 'People'
+        HAMMER = 'hammer', 'Hammer'
+        SPARKLES = 'sparkles', 'Sparkles'
+        BUILDING = 'building', 'Building'
+        UTENSILS = 'utensils', 'Utensils'
+
+    category = models.OneToOneField(
+        'jobs.JobCategory',
+        on_delete=models.CASCADE,
+        related_name='footer_entry',
+    )
+    icon = models.CharField(max_length=20, choices=Icon.choices, default=Icon.BRIEFCASE)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+        verbose_name_plural = "Footer Categories"
+
+    def __str__(self):
+        return self.category.name
