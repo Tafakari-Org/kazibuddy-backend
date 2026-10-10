@@ -38,6 +38,7 @@ import requests
 from utils.views import upload_file_to_supabase,get_file_url_from_supabase
 from utils.custom_error import error_response, _ok, _err, _serializer_errors_to_message
 from .login_status import login_refusal_response, rejected_login_response, support_email
+from .password_change import log_staff_password_change
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from utils.logger import get_logger
@@ -860,6 +861,8 @@ class UpdateUserProfileView(APIView):
                 )
 
             logger.info(f"User profile updated successfully for {user.email}")
+            if new_password:
+                log_staff_password_change(request, user, via="profile_update")
 
             # Remove the old photo from storage only after the DB commit succeeds
             if old_photo_url:
