@@ -73,9 +73,18 @@ class ChangePasswordTests(TestCase):
         self.change(self.admin, current='nope')
         self.assertFalse(AuditLog.objects.filter(action=AuditLog.Action.ADMIN_PASSWORD_CHANGED).exists())
 
-    def test_admin_password_via_profile_update_is_audited(self):
-        self.client.force_authenticate(self.admin)
-        r = self.client.put('/api/accounts/me/update/', {'password': NEW}, format='json')
+    def test_profile_update_no_longer_changes_password(self):
+        self.client.force_authenticate(self.user)
+        r = self.client.put('/api/accounts/me/update/', {'password': NEW, 'full_name': 'Changed'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('password', r.json()['stack'])
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(OLD))
+        self.assertEqual(self.user.full_name, 'Jane Wanjiru')  # nothing else applied either
+
+    def test_profile_update_still_works_without_password(self):
+        self.client.force_authenticate(self.user)
+        r = self.client.put('/api/accounts/me/update/', {'full_name': 'Jane W.'}, format='json')
         self.assertEqual(r.status_code, 200, r.content)
-        log = AuditLog.objects.get(action=AuditLog.Action.ADMIN_PASSWORD_CHANGED)
-        self.assertEqual(log.details['via'], 'profile_update')
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.full_name, 'Jane W.')

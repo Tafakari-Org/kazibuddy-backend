@@ -26,6 +26,7 @@ class ChangePasswordView(APIView):
 
     The signed-in user changes their own password. The current password is
     required so a stolen session token alone can't take over the account.
+    This is the only way to change a password while signed in.
     """
     permission_classes = [permissions.IsAuthenticated]
 

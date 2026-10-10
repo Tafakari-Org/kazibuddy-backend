@@ -38,7 +38,6 @@ import requests
 from utils.views import upload_file_to_supabase,get_file_url_from_supabase
 from utils.custom_error import error_response, _ok, _err, _serializer_errors_to_message
 from .login_status import login_refusal_response, rejected_login_response, support_email
-from .password_change import log_staff_password_change
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from utils.logger import get_logger
@@ -48,7 +47,6 @@ import os
 import mimetypes
 from utils.file_upload import FileUploadService
 from documents.models import UserDocument, DocumentType
-from django.contrib.auth.password_validation import validate_password as django_validate_password
 
 from documents.views import MAX_DOCUMENTS_PER_USER
 
@@ -803,6 +801,15 @@ class UpdateUserProfileView(APIView):
             user = request.user
             data = request.data
 
+            # Passwords change only via POST /me/change-password/, which asks for the current one,
+            # so a stolen session token alone can't take over the account.
+            if "password" in data:
+                return error_response(
+                    message="Passwords can't be changed here. Use the Change password section of your profile.",
+                    errors={"password": ["Use POST /api/accounts/me/change-password/ with your current password."]},
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+
             # ── Every field below is optional/partial — only touch what's sent ──
             user.full_name = data.get("full_name", user.full_name)
             user.phone_number = data.get("phone_number", user.phone_number)
@@ -820,19 +827,6 @@ class UpdateUserProfileView(APIView):
                 user.email = new_email
                 user.email_verified = False
                 email_changed = True
-
-            # ── Password — optional, validated with Django's configured rules ──
-            new_password = data.get("password")
-            if new_password:
-                try:
-                    django_validate_password(new_password, user=user)
-                except Exception as e:
-                    return error_response(
-                        message="Error updating user profile",
-                        errors={"password": list(getattr(e, "messages", [str(e)]))},
-                        status_code=status.HTTP_400_BAD_REQUEST
-                    )
-                user.set_password(new_password)
 
             # ── Profile photo — actual file upload (was reading a nonexistent
             # 'profile_photo_url' text field before; the frontend sends a file
@@ -861,8 +855,6 @@ class UpdateUserProfileView(APIView):
                 )
 
             logger.info(f"User profile updated successfully for {user.email}")
-            if new_password:
-                log_staff_password_change(request, user, via="profile_update")
 
             # Remove the old photo from storage only after the DB commit succeeds
             if old_photo_url:
