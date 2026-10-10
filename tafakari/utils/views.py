@@ -340,8 +340,9 @@ def _frontend_base():
     return str(getattr(settings, 'FRONTEND_URL', '') or 'https://kazibuddy.tech').rstrip('/')
 
 
-def build_account_approved_email(user, open_jobs=0, missing=None):
-    """Return (subject, html) for the 'welcome, you're approved' email."""
+def build_account_approved_email(user, open_jobs=0, missing=None, after_review=False):
+    """Return (subject, html) for the 'welcome, you're approved' email.
+    after_review: the account was rejected earlier and an admin has now approved it."""
     base = _frontend_base()
     full_name = getattr(user, 'full_name', '') or user.email
     context = {
@@ -356,18 +357,19 @@ def build_account_approved_email(user, open_jobs=0, missing=None):
         'post_job_url': f"{base}/dashboard?tab=post-job",
         'profile_url': f"{base}/profile",
         'support_email': SUPPORT_EMAIL,
+        'after_review': after_review,
     }
     html = render_to_string('email_templates/account_approved_email.html', context)
     return "You're approved — welcome to KaziBuddy!", html
 
 
-def send_account_approved_email(user, open_jobs=0, missing=None):
+def send_account_approved_email(user, open_jobs=0, missing=None, after_review=False):
     """Welcome email after an admin approves the account. Never raises."""
     try:
         if not user.email:
             logger.error(f"User {user.id} has no email address — cannot send approval email")
             return
-        subject, html_message = build_account_approved_email(user, open_jobs, missing)
+        subject, html_message = build_account_approved_email(user, open_jobs, missing, after_review)
         send_email_async(subject, html_message, [user.email])
         logger.info(f"Account approval email queued for {user.email}")
     except Exception as e:

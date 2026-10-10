@@ -557,11 +557,11 @@
 
             <div class="status-banner welcome">
                 <div class="status-banner-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
-                <div class="status-banner-text">Our team has reviewed and approved your account.</div>
+                <div class="status-banner-text">{% if after_review %}We took another look at your account and it&rsquo;s now approved.{% else %}Our team has reviewed and approved your account.{% endif %}</div>
             </div>
 
             <div class="notification-message">
-                Great news &mdash; your <strong>KaziBuddy</strong> account is approved. You can now apply for jobs, get hired, and post jobs of your own.
+                Great news &mdash; {% if after_review %}following a second review, {% endif %}your <strong>KaziBuddy</strong> account is approved.{% if after_review %} You can ignore our earlier email about your registration.{% endif %} You can now apply for jobs, get hired, and post jobs of your own.
                 Here&rsquo;s how to get started.
             </div>
 
