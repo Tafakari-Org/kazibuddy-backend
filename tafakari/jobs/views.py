@@ -121,7 +121,8 @@ class JobsInCategoryView(views.APIView):
     def get(self, request, category_id):
         try:
             category = JobCategory.objects.get(pk=category_id)
-            jobs = category.jobs.all()
+            # Same rule as the public job list: approved and not yet assigned to a worker.
+            jobs = category.jobs.filter(admin_approved=True, is_assigned=False).order_by('-created_at')
             paginator = self.pagination_class()
             paginated_jobs = paginator.paginate_queryset(jobs, request)
             serializer = JobSerializer(paginated_jobs, many=True, context={'request': request})
@@ -174,6 +175,14 @@ class JobListView(views.APIView):
 
 
 
+def can_view_assigned_job(user, job):
+    """Once a job is assigned it is off the public board: only its poster, admins and its applicants may open it."""
+    if not user or not user.is_authenticated:
+        return False
+    return (user.is_staff or job.employer_id == user.id
+            or JobApplication.objects.filter(job=job, worker=user).exists())
+
+
 class JobDetailView(views.APIView):
     # permission_classes = [permissions.IsAuthenticated]
 
@@ -182,6 +191,12 @@ class JobDetailView(views.APIView):
             job = (Job.objects.select_related('employer', 'category')
                    .prefetch_related('images', 'attachments', 'job_skills__skill')
                    .get(pk=job_id))
+            if job.is_assigned and not can_view_assigned_job(request.user, job):
+                return Response({
+                    "error": "This job has been filled and is no longer available.",
+                    "message": "This job has been filled and is no longer available.",
+                    "code": "job_filled",
+                }, status=404)
             serializer = JobSerializer(job, context={'request': request})
             return Response(
                 {
