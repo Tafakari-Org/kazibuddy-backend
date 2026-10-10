@@ -10,7 +10,9 @@ from .utils import check_if_user_isOwner
 from utils.custom_pagination import CustomPagination
 from django.db import transaction
 from utils.views import send_otp_to_email
+from django.db.models import Q
 import logging
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +297,33 @@ class AllJobApplicationListView(APIView):
         })
 
 #get all rejected job applications
+def _admin_status_list(request, app_status):
+    """
+    Admin list of applications in one status, newest first, with optional filters:
+      ?job=<uuid>      only that job's applicants (the job's applicants modal)
+      ?search=<text>   applicant name or email contains the text
+    Returns (queryset, None) or (None, error Response).
+    """
+    applications = JobApplication.objects.filter(status=app_status)\
+        .select_related('job', 'worker')\
+        .prefetch_related('job__job_skills', 'job__category', 'job__images', 'job__attachments')\
+        .order_by('-applied_at')
+
+    job_id = request.query_params.get('job')
+    if job_id:
+        try:
+            uuid.UUID(str(job_id))
+        except ValueError:
+            return None, Response({'status': 'error', 'message': 'job must be a valid job ID.'}, status=400)
+        applications = applications.filter(job_id=job_id)
+
+    search = (request.query_params.get('search') or '').strip()
+    if search:
+        applications = applications.filter(Q(worker__full_name__icontains=search) | Q(worker__email__icontains=search))
+
+    return applications, None
+
+
 class RejectedJobApplicationListView(APIView):
     permission_classes = [IsAdminUser]
     pagination_class = CustomPagination
@@ -302,10 +331,9 @@ class RejectedJobApplicationListView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            applications = JobApplication.objects.filter(status='rejected')\
-                .select_related('job','worker')\
-                .prefetch_related('job__job_skills','job__category', 'job__images', 'job__attachments')\
-                .order_by('-applied_at')
+            applications, error = _admin_status_list(request, 'rejected')
+            if error:
+                return error
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
             serializer = self.serializer_class(paginated_applications, many=True, context={'request': request})
@@ -328,10 +356,9 @@ class PendingJobApplicationListView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            applications = JobApplication.objects.filter(status='pending')\
-                .select_related('job','worker')\
-                .prefetch_related('job__job_skills','job__category', 'job__images','job__attachments')\
-                .order_by('-applied_at')
+            applications, error = _admin_status_list(request, 'pending')
+            if error:
+                return error
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
             serializer = self.serializer_class(paginated_applications, many=True, context={'request': request})
@@ -354,10 +381,9 @@ class AcceptedJobApplicationListView(APIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            applications = JobApplication.objects.filter(status='accepted')\
-                .select_related('job','worker')\
-                .prefetch_related('job__job_skills','job__category', 'job__images', 'job__attachments')\
-                .order_by('-applied_at')
+            applications, error = _admin_status_list(request, 'accepted')
+            if error:
+                return error
             paginator = self.pagination_class()
             paginated_applications = paginator.paginate_queryset(applications, request)
             serializer = self.serializer_class(paginated_applications, many=True, context={'request': request})
