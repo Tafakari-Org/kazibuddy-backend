@@ -1,5 +1,6 @@
 from django.urls import path
 from .dashboard import MyDashboardView, RequestReviewView
+from .password_change import ChangePasswordView
 from .otp_resend import ResendOTPView
 from .views import (
     LoginView,
@@ -29,6 +30,7 @@ urlpatterns = [
     path('me/dashboard/', MyDashboardView.as_view(), name='my_dashboard'),
     path('me/request-review/', RequestReviewView.as_view(), name='request_review'),
     path('me/update/', UpdateUserProfileView.as_view(), name='update_profile'),
+    path('me/change-password/', ChangePasswordView.as_view(), name='change_password'),
     path('me/delete/', DeleteAccountView.as_view(), name='delete_profile'),
     path('verify-email/', VerifyEmailView.as_view(), name='verify_email'),
     path('resend-otp/', ResendOTPView.as_view(), name='resend_otp'),

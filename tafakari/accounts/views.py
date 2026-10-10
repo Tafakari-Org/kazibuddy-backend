@@ -33,9 +33,11 @@ from django.shortcuts import render
 from django.db import transaction
 import jwt
 import json
+from urllib.parse import urlencode
 import requests
 from utils.views import upload_file_to_supabase,get_file_url_from_supabase
 from utils.custom_error import error_response, _ok, _err, _serializer_errors_to_message
+from .login_status import login_refusal_response, rejected_login_response, support_email
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from utils.logger import get_logger
@@ -45,7 +47,6 @@ import os
 import mimetypes
 from utils.file_upload import FileUploadService
 from documents.models import UserDocument, DocumentType
-from django.contrib.auth.password_validation import validate_password as django_validate_password
 
 from documents.views import MAX_DOCUMENTS_PER_USER
 
@@ -330,13 +331,11 @@ class LoginView(APIView):
             user = serializer.validated_data['user']
             logger.info(f"Login attempt for user: {user.email}")
             
-            if not user.email_verified :
-                logger.warning(f"Login failed: Email not verified for user {user.email}")
-                return Response({"error": "Email not verified. Please verify your email before logging in."}, status=status.HTTP_403_FORBIDDEN)
-            else:
-                if not user.is_verified:
-                    logger.warning(f"Login failed: User not approved by admin: {user.email}")
-                    return Response({"error": "You are not approved by admin yet. Please wait for approval."}, status=status.HTTP_403_FORBIDDEN)
+            # Unverified email, awaiting approval, or rejected: 403 with a `code` the client can act on.
+            refusal = login_refusal_response(user)
+            if refusal is not None:
+                logger.warning(f"Login refused ({refusal.data['code']}) for user {user.email}")
+                return refusal
             
             tokens = get_tokens_for_user(user)
             user_type = get_userType_fromToken(tokens['access'])
@@ -460,6 +459,14 @@ class GoogleLoginCallback(APIView):
             
             try:
                 user = CustomUser.objects.get(email=email)
+
+                if not user.is_verified and user.rejected_at:
+                    logger.warning(f"Google login attempt for rejected user: {email}")
+                    # Reasons stay out of the URL; the login page shows the contact address.
+                    return redirect(
+                        f"{settings.FRONTEND_URL}/auth/login"
+                        f"?{urlencode({'status': 'account_rejected', 'support_email': support_email()})}"
+                    )
 
                 if not user.is_verified:
                     logger.warning(f"Google login attempt for unverified user: {email}")
@@ -636,6 +643,9 @@ class GoogleLoginCallback(APIView):
             try:
                 user = CustomUser.objects.get(email=email)
                 
+                if not user.is_verified and user.rejected_at:
+                    return rejected_login_response(user)
+
                 # Check if user is verified by admin
                 if not user.is_verified:
                     return Response({
@@ -791,6 +801,15 @@ class UpdateUserProfileView(APIView):
             user = request.user
             data = request.data
 
+            # Passwords change only via POST /me/change-password/, which asks for the current one,
+            # so a stolen session token alone can't take over the account.
+            if "password" in data:
+                return error_response(
+                    message="Passwords can't be changed here. Use the Change password section of your profile.",
+                    errors={"password": ["Use POST /api/accounts/me/change-password/ with your current password."]},
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+
             # ── Every field below is optional/partial — only touch what's sent ──
             user.full_name = data.get("full_name", user.full_name)
             user.phone_number = data.get("phone_number", user.phone_number)
@@ -808,19 +827,6 @@ class UpdateUserProfileView(APIView):
                 user.email = new_email
                 user.email_verified = False
                 email_changed = True
-
-            # ── Password — optional, validated with Django's configured rules ──
-            new_password = data.get("password")
-            if new_password:
-                try:
-                    django_validate_password(new_password, user=user)
-                except Exception as e:
-                    return error_response(
-                        message="Error updating user profile",
-                        errors={"password": list(getattr(e, "messages", [str(e)]))},
-                        status_code=status.HTTP_400_BAD_REQUEST
-                    )
-                user.set_password(new_password)
 
             # ── Profile photo — actual file upload (was reading a nonexistent
             # 'profile_photo_url' text field before; the frontend sends a file

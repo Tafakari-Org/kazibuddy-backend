@@ -21,6 +21,7 @@ class AuditLog(models.Model):
         ADMIN_UPDATED = 'admin.updated', 'Edited admin'
         ADMIN_DELETED = 'admin.deleted', 'Deleted admin'
         ADMIN_INVITE_RESENT = 'admin.invite_resent', 'Resent admin invite'
+        ADMIN_PASSWORD_CHANGED = 'admin.password_changed', 'Changed own password'
         # Jobs
         JOB_APPROVED = 'job.approved', 'Approved job'
         JOB_UNAPPROVED = 'job.unapproved', 'Unapproved job'
