@@ -33,9 +33,11 @@ from django.shortcuts import render
 from django.db import transaction
 import jwt
 import json
+from urllib.parse import urlencode
 import requests
 from utils.views import upload_file_to_supabase,get_file_url_from_supabase
 from utils.custom_error import error_response, _ok, _err, _serializer_errors_to_message
+from .login_status import login_refusal_response, rejected_login_response, support_email
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from utils.logger import get_logger
@@ -330,13 +332,11 @@ class LoginView(APIView):
             user = serializer.validated_data['user']
             logger.info(f"Login attempt for user: {user.email}")
             
-            if not user.email_verified :
-                logger.warning(f"Login failed: Email not verified for user {user.email}")
-                return Response({"error": "Email not verified. Please verify your email before logging in."}, status=status.HTTP_403_FORBIDDEN)
-            else:
-                if not user.is_verified:
-                    logger.warning(f"Login failed: User not approved by admin: {user.email}")
-                    return Response({"error": "You are not approved by admin yet. Please wait for approval."}, status=status.HTTP_403_FORBIDDEN)
+            # Unverified email, awaiting approval, or rejected: 403 with a `code` the client can act on.
+            refusal = login_refusal_response(user)
+            if refusal is not None:
+                logger.warning(f"Login refused ({refusal.data['code']}) for user {user.email}")
+                return refusal
             
             tokens = get_tokens_for_user(user)
             user_type = get_userType_fromToken(tokens['access'])
@@ -460,6 +460,14 @@ class GoogleLoginCallback(APIView):
             
             try:
                 user = CustomUser.objects.get(email=email)
+
+                if not user.is_verified and user.rejected_at:
+                    logger.warning(f"Google login attempt for rejected user: {email}")
+                    # Reasons stay out of the URL; the login page shows the contact address.
+                    return redirect(
+                        f"{settings.FRONTEND_URL}/auth/login"
+                        f"?{urlencode({'status': 'account_rejected', 'support_email': support_email()})}"
+                    )
 
                 if not user.is_verified:
                     logger.warning(f"Google login attempt for unverified user: {email}")
@@ -636,6 +644,9 @@ class GoogleLoginCallback(APIView):
             try:
                 user = CustomUser.objects.get(email=email)
                 
+                if not user.is_verified and user.rejected_at:
+                    return rejected_login_response(user)
+
                 # Check if user is verified by admin
                 if not user.is_verified:
                     return Response({
